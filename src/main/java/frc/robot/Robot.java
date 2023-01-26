@@ -4,8 +4,6 @@
 
 package frc.robot;
 
-import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
-import com.ctre.phoenix.motorcontrol.can.TalonFX;
 import com.ctre.phoenix.sensors.Pigeon2;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
@@ -68,6 +66,11 @@ public class Robot extends TimedRobot {
   private double wheel2DirActual = 0;
   private double wheel3DirActual = 0;
   private double wheel4DirActual = 0;
+
+  private double wheel1Position = 0;
+  private double wheel2Position = 0;
+  private double wheel3Position = 0;
+  private double wheel4Position = 0;
   
   private double wheel1Sign = 1;
   private double wheel2Sign = 1;
@@ -83,12 +86,6 @@ public class Robot extends TimedRobot {
   // private final SparkMaxPIDController_ driveMotorPIDController2 = new SparkMaxPIDController_(driveMotor2, NEO_DRIVE_CONVERSION_FACTOR, .25, 0);
   // private final SparkMaxPIDController_ driveMotorPIDController3 = new SparkMaxPIDController_(driveMotor3, NEO_DRIVE_CONVERSION_FACTOR, .25, 0);
   // private final SparkMaxPIDController_ driveMotorPIDController4 = new SparkMaxPIDController_(driveMotor4, NEO_DRIVE_CONVERSION_FACTOR, .25, 0);
-
-  
-  private double targetPosition = 0;
-  private double lastTargetPosition = 0;
-
-  private double calibrateTimer = 0;
 
   private Vec2 targetVector = new Vec2();
   private Vec2 motorVector1 = new Vec2();
@@ -121,8 +118,6 @@ public class Robot extends TimedRobot {
 
     System.out.println(absoluteMotorEncoder1.isConnected());
 
-    SmartDashboard.putNumber("Position", 0);
-
   }
 
   //Calibrates motors so that their relative encoders agree with absolute encoders
@@ -135,7 +130,10 @@ public class Robot extends TimedRobot {
 
   private void sharedInit() {
     calibrateEncoders();
-    targetPosition = 0;
+    wheel1Position = 0;
+    wheel2Position = 0;
+    wheel3Position = 0;
+    wheel4Position = 0;
     startPigeon = pigeon.getYaw() / 360;
   }
 
@@ -205,6 +203,10 @@ public class Robot extends TimedRobot {
     // beltController.setAngle(360);
   }
 
+  private double mod(double a, double n) {
+    return a - Math.floor(a / n) * n;
+  }
+
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
@@ -216,7 +218,6 @@ public class Robot extends TimedRobot {
 
     SmartDashboard.putNumber("Motor 1 Position", motorPIDController1.motor.getEncoder().getPosition());
     SmartDashboard.putNumber("Motor 2 Position", motorPIDController2.motor.getEncoder().getPosition());
-    SmartDashboard.putNumber("Target", targetPosition);
 
     
     double yaw = pigeon.getYaw();
@@ -227,52 +228,126 @@ public class Robot extends TimedRobot {
     double y = controller.getRightY();
     double rotationX = controller.getLeftX();
 
-    wheel1DirTarget = Math.atan2(y, x);
-    wheel2DirTarget = Math.atan2(y, x);
-    wheel3DirTarget = Math.atan2(y, x);
-    wheel4DirTarget = Math.atan2(y, x);
+    double angle = Math.atan2(y, x);
+    double len = Math.sqrt(x * x + y * y);
 
-    double angleDiff1 = Math.PI - Math.abs(Math.abs(wheel1DirTarget - motorPIDController1.getNormalizedRadianPosition()) - Math.PI);
-    double angleDiff2 = Math.PI - Math.abs(Math.abs(wheel2DirTarget - motorPIDController2.getNormalizedRadianPosition()) - Math.PI);
-    double angleDiff3 = Math.PI - Math.abs(Math.abs(wheel3DirTarget - motorPIDController3.getNormalizedRadianPosition()) - Math.PI);
-    double angleDiff4 = Math.PI - Math.abs(Math.abs(wheel4DirTarget - motorPIDController4.getNormalizedRadianPosition()) - Math.PI);
+    double controllerPower = len * len;//controller.getRightTriggerAxis();
+    double rotationPower = rotationX * rotationX;
 
-    //needs a whole ton of work because im pretty sure this dont work
-    
-    if(angleDiff1 > Math.PI / 2) {
-      if(wheel1DirTarget > 0) {
-        wheel1DirActual = wheel1DirTarget - Math.PI;
+    double wheelChange1 = 0;
+    double wheelChange2 = 0;
+    double wheelChange3 = 0;
+    double wheelChange4 = 0;
+
+    Vec2 motor1Vec = new Vec2(0, 0);
+    Vec2 motor2Vec = new Vec2(0, 0);
+    Vec2 motor3Vec = new Vec2(0, 0);
+    Vec2 motor4Vec = new Vec2(0, 0);
+
+    if(len >= 0.1 || Math.abs(rotationX) >= 0.1) {
+      if (rotationX <= -.1) {
+        motorVector1 = new Vec2(-rotationPower * Math.cos(Math.PI / 4), -rotationPower * Math.sin(Math.PI / 4));
+        motorVector2 = new Vec2(rotationPower * Math.cos(3 * Math.PI / 4), rotationPower * Math.sin(3 * Math.PI / 4));
+        motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4), -rotationPower * Math.sin(-3 * Math.PI / 4));
+        motorVector4 = new Vec2(rotationPower * Math.cos(-Math.PI / 4), rotationPower * Math.sin(-Math.PI / 4));
+        
+      } else if (rotationX >= .1) {
+        motorVector1 = new Vec2(-rotationPower * Math.cos(-Math.PI / 4 - Math.PI / 2), -rotationPower * Math.sin(-Math.PI / 4 - Math.PI / 2));
+        motorVector2 = new Vec2(rotationPower * Math.cos(Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(Math.PI / 4 - Math.PI / 2));
+        motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI), -rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI));
+        motorVector4 = new Vec2(rotationPower * Math.cos(5 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(5 * Math.PI / 4 - Math.PI / 2));
+        
       } else {
-        wheel1DirActual = wheel1DirTarget + Math.PI;
+        motorVector1 = new Vec2(0, 0);
+        motorVector2 = new Vec2(0, 0);
+        motorVector3 = new Vec2(0, 0);
+        motorVector4 = new Vec2(0, 0);
       }
-      wheel1Sign = -1;
-    }
 
-    if(angleDiff2 > Math.PI / 2) {
-      if(wheel2DirTarget > 0) {
-        wheel2DirActual = wheel2DirTarget - Math.PI;
-      } else {
-        wheel2DirActual = wheel2DirTarget + Math.PI;
-      }
-      wheel2Sign = -1;
-    }
+      targetVector = new Vec2(controllerPower * Math.cos(angle), controllerPower * Math.sin(angle));
 
-    if(angleDiff3 > Math.PI / 2) {
-      if(wheel3DirTarget > 0) {
-        wheel3DirActual = wheel3DirTarget - Math.PI;
+      if(len > 0.1) {
+        motor1Vec = targetVector.add(motorVector1).limitLength(1);
+        motor2Vec = targetVector.add(motorVector2).limitLength(1);
+        motor3Vec = targetVector.add(motorVector3).limitLength(1);
+        motor4Vec = targetVector.add(motorVector4).limitLength(1);
       } else {
-        wheel3DirActual = wheel3DirTarget + Math.PI;
+        motor1Vec = motorVector1.limitLength(1);
+        motor2Vec = motorVector2.limitLength(1);
+        motor3Vec = motorVector3.limitLength(1);
+        motor4Vec = motorVector4.limitLength(1);
       }
-      wheel3Sign = -1;
-    }
 
-    if(angleDiff4 > Math.PI / 2) {
-      if(wheel4DirTarget > 0) {
-        wheel4DirActual = wheel4DirTarget - Math.PI;
+      wheel1DirTarget = motor1Vec.toRadians();
+      wheel2DirTarget = motor2Vec.toRadians();
+      wheel3DirTarget = motor3Vec.toRadians();
+      wheel4DirTarget = motor4Vec.toRadians();
+
+      double normalizedPosition1 = Math.IEEEremainder(wheel1Position, Math.PI * 2);
+      double normalizedPosition2 = Math.IEEEremainder(wheel2Position, Math.PI * 2);
+      double normalizedPosition3 = Math.IEEEremainder(wheel3Position, Math.PI * 2);
+      double normalizedPosition4 = Math.IEEEremainder(wheel4Position, Math.PI * 2);
+
+      double angleDiff1 = Math.PI - Math.abs(Math.abs(wheel1DirTarget - normalizedPosition1) - Math.PI);
+      double angleDiff2 = Math.PI - Math.abs(Math.abs(wheel2DirTarget - normalizedPosition2) - Math.PI);
+      double angleDiff3 = Math.PI - Math.abs(Math.abs(wheel3DirTarget - normalizedPosition3) - Math.PI);
+      double angleDiff4 = Math.PI - Math.abs(Math.abs(wheel4DirTarget - normalizedPosition4) - Math.PI);
+
+      //needs a whole ton of work because im pretty sure this dont work
+      
+      if(angleDiff1 > Math.PI / 2) {
+        if(wheel1DirTarget > 0) {
+          wheel1DirActual = wheel1DirTarget - Math.PI;
+        } else {
+          wheel1DirActual = wheel1DirTarget + Math.PI;
+        }
+        wheel1Sign = -1;
       } else {
-        wheel4DirActual = wheel4DirTarget + Math.PI;
+        wheel1Sign = 1;
+        wheel1DirActual = wheel1DirTarget;
       }
-      wheel4Sign = -1;
+
+      if(angleDiff2 > Math.PI / 2) {
+        if(wheel2DirTarget > 0) {
+          wheel2DirActual = wheel2DirTarget - Math.PI;
+        } else {
+          wheel2DirActual = wheel2DirTarget + Math.PI;
+        }
+        wheel2Sign = -1;
+      } else {
+        wheel2Sign = 1;
+        wheel2DirActual = wheel2DirTarget;
+      }
+
+      if(angleDiff3 > Math.PI / 2) {
+        if(wheel3DirTarget > 0) {
+          wheel3DirActual = wheel3DirTarget - Math.PI;
+        } else {
+          wheel3DirActual = wheel3DirTarget + Math.PI;
+        }
+        wheel3Sign = -1;
+      } else {
+        wheel3Sign = 1;
+        wheel3DirActual = wheel3DirTarget;
+      }
+
+      if(angleDiff4 > Math.PI / 2) {
+        if(wheel4DirTarget > 0) {
+          wheel4DirActual = wheel4DirTarget - Math.PI;
+        } else {
+          wheel4DirActual = wheel4DirTarget + Math.PI;
+        }
+        wheel4Sign = -1;
+      } else {
+        wheel4Sign = 1;
+        wheel4DirActual = wheel4DirTarget;
+      }
+
+      wheelChange1 = mod(((wheel1DirActual - normalizedPosition1) + Math.PI), Math.PI * 2) - Math.PI;
+      wheelChange2 = mod(((wheel2DirActual - normalizedPosition2) + Math.PI), Math.PI * 2) - Math.PI;
+      wheelChange3 = mod(((wheel3DirActual - normalizedPosition3) + Math.PI), Math.PI * 2) - Math.PI;
+      wheelChange4 = mod(((wheel4DirActual - normalizedPosition4) + Math.PI), Math.PI * 2) - Math.PI;
+      SmartDashboard.putNumber("wheel change 1", angleDiff1);
     }
 
     if(controller.getAButton()) {
@@ -309,79 +384,25 @@ public class Robot extends TimedRobot {
     }
 
     // grabberMotor.set(TalonFXControlMode.Position, rotationX * 1000);
-    
-    double angle = Math.atan2(y, x);
-    double len = Math.sqrt(x * x + y * y);
-
-    double controllerPower = len * len;//controller.getRightTriggerAxis();
-    double rotationPower = rotationX * rotationX;
-
-    if (len >= 0.1) {
-      double tar = -angle / (Math.PI * 2) - 0.25 - (pigeon.getYaw() / 360 - startPigeon);
-
-      while(tar - 0.5 > targetPosition) {
-        tar -= 1.0;
-      }
-
-      while(tar + 0.5 < targetPosition) {
-        tar += 1.0;
-      }
-
-      targetPosition = tar; // maybe?
-    }
-
-    if (rotationX <= .1) {
-      motorVector1 = new Vec2(rotationPower * Math.cos(Math.PI / 4), rotationPower * Math.sin(Math.PI / 4));
-      motorVector2 = new Vec2(rotationPower * Math.cos(-Math.PI / 4 - Math.PI), rotationPower * Math.sin(-Math.PI / 4 - Math.PI));
-      motorVector3 = new Vec2(rotationPower * Math.cos(3 * Math.PI / 4 - 3 * Math.PI / 2), rotationPower * Math.sin(3 * Math.PI / 4 - 3 * Math.PI / 2));
-      motorVector4 = new Vec2(rotationPower * Math.cos(-5 * Math.PI / 4 - Math.PI), rotationPower * Math.sin(-5 * Math.PI / 4 - Math.PI));
-      
-    } else if (rotationX >= -.1) {
-      motorVector1 = new Vec2(rotationPower * Math.cos(-Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(-Math.PI / 4 - Math.PI / 2));
-      motorVector2 = new Vec2(rotationPower * Math.cos(Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(Math.PI / 4 - Math.PI / 2));
-      motorVector3 = new Vec2(rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI), rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI));
-      motorVector4 = new Vec2(rotationPower * Math.cos(5 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(5 * Math.PI / 4 - Math.PI / 2));
-      
-    } else {
-      motorVector1 = new Vec2(0, 0);
-      motorVector2 = new Vec2(0, 0);
-      motorVector3 = new Vec2(0, 0);
-      motorVector4 = new Vec2(0, 0);
-    }
-
-    targetVector = new Vec2(controllerPower * Math.cos(targetPosition * 2 * Math.PI), controllerPower * Math.sin(targetPosition * 2 * Math.PI));
-    
-    Vec2 motor1Vec = targetVector.add(motorVector1).limitLength(0.5);
-    Vec2 motor2Vec = targetVector.add(motorVector2).limitLength(0.5);
-    Vec2 motor3Vec = targetVector.add(motorVector3).limitLength(0.5);
-    Vec2 motor4Vec = targetVector.add(motorVector4).limitLength(0.5);
         
-    driveMotor1.set(motor1Vec.getLength());
-    driveMotor2.set(motor2Vec.getLength());
-    driveMotor3.set(motor3Vec.getLength());
-    driveMotor4.set(motor4Vec.getLength());
+    driveMotor1.set(-motor1Vec.getLength() * wheel1Sign);
+    driveMotor2.set(-motor2Vec.getLength() * wheel2Sign);
+    driveMotor3.set(-motor3Vec.getLength() * wheel3Sign);
+    driveMotor4.set(-motor4Vec.getLength() * wheel4Sign);
 
-    if (controller.getAButton()) {
-      targetPosition = 0.5;
-    } else if (controller.getXButton()) {
-      targetPosition = 0.25;
-    } else if (controller.getYButton()) {
-      targetPosition = 0;
-    } else if (controller.getBButton()) {
-      targetPosition = 0.75;
-    }
+    wheel1Position += wheelChange1;
+    wheel2Position += wheelChange2;
+    wheel3Position += wheelChange3;
+    wheel4Position += wheelChange4;
 
     // System.out.println(targetVector.add(motorVector1).limit(1, 0).toAngle() / 360);
-    motorPIDController1.setPosition(motor1Vec.toAngle() / 360);
-    motorPIDController2.setPosition(motor2Vec.toAngle() / 360);
-    motorPIDController3.setPosition(motor3Vec.toAngle() / 360);
-    motorPIDController4.setPosition(motor4Vec.toAngle() / 360);
+    motorPIDController1.setPosition(-wheel1Position / Math.PI / 2 + 0.25);
+    motorPIDController2.setPosition(-wheel2Position / Math.PI / 2 + 0.25);
+    motorPIDController3.setPosition(-wheel3Position / Math.PI / 2 + 0.25);
+    motorPIDController4.setPosition(-wheel4Position / Math.PI / 2 + 0.25);
 
+    SmartDashboard.putNumber("Position", wheel1Position);
     // grabberMotor.set(TalonFXControlMode.Position, grabberPositionRamp);
-
-
-    lastTargetPosition = targetPosition;
-    calibrateTimer += 0.005;
   }
 
   @Override

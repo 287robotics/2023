@@ -28,8 +28,21 @@ public class Vec2{
         return Math.atan2(y, x) * 180 / Math.PI;
     }
 
+    public double toRadians() {
+        return Math.atan2(y, x);
+    }
+
     public double getLength() {
         return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+
+    public Vec2 multiply(double scalar) {
+        Vec2 res = new Vec2();
+
+        res.x = this.x * scalar;
+        res.y = this.y * scalar;
+
+        return res;
     }
 
     public Vec2 limitLength(double max) {
