@@ -4,10 +4,24 @@
 
 package frc.robot;
 
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.Point;
+import org.opencv.core.Scalar;
+import org.opencv.imgproc.Imgproc;
+
 import com.ctre.phoenix.sensors.Pigeon2;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
+import edu.wpi.first.apriltag.AprilTagDetection;
+import edu.wpi.first.apriltag.AprilTagDetector;
+import edu.wpi.first.apriltag.AprilTagPoseEstimator;
+import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.cscore.CvSink;
+import edu.wpi.first.cscore.CvSource;
+import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.DutyCycleEncoder;
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -57,41 +71,28 @@ public class Robot extends TimedRobot {
   private final double NEO_CONVERSION_FACTOR = -13.71;
   private final double NEO_DRIVE_CONVERSION_FACTOR = 7.36;
 
-  private double wheel1DirTarget = 0;
-  private double wheel2DirTarget = 0;
-  private double wheel3DirTarget = 0;
-  private double wheel4DirTarget = 0;
-
-  private double wheel1DirActual = 0;
-  private double wheel2DirActual = 0;
-  private double wheel3DirActual = 0;
-  private double wheel4DirActual = 0;
-
-  private double wheel1Position = 0;
-  private double wheel2Position = 0;
-  private double wheel3Position = 0;
-  private double wheel4Position = 0;
-  
-  private double wheel1Sign = 1;
-  private double wheel2Sign = 1;
-  private double wheel3Sign = 1;
-  private double wheel4Sign = 1;
+  private IndWheelController indWheelController1 = new IndWheelController();
+  private IndWheelController indWheelController2 = new IndWheelController();
+  private IndWheelController indWheelController3 = new IndWheelController();
+  private IndWheelController indWheelController4 = new IndWheelController();
 
   private final SparkMaxPIDController_ motorPIDController1 = new SparkMaxPIDController_(motor1, NEO_CONVERSION_FACTOR, 1, 0.179 + 0.5 + 0.25);
   private final SparkMaxPIDController_ motorPIDController2 = new SparkMaxPIDController_(motor2, NEO_CONVERSION_FACTOR, 1, 0.240 + 0.5 + 0.25);
   private final SparkMaxPIDController_ motorPIDController3 = new SparkMaxPIDController_(motor3, NEO_CONVERSION_FACTOR, 1, 0.898954 - 0.5 + 0.25);
   private final SparkMaxPIDController_ motorPIDController4 = new SparkMaxPIDController_(motor4, NEO_CONVERSION_FACTOR, 1, 0.963311 - 0.5 + 0.25);
 
-  // private final SparkMaxPIDController_ driveMotorPIDController1 = new SparkMaxPIDController_(driveMotor1, NEO_DRIVE_CONVERSION_FACTOR, .25, 0);
-  // private final SparkMaxPIDController_ driveMotorPIDController2 = new SparkMaxPIDController_(driveMotor2, NEO_DRIVE_CONVERSION_FACTOR, .25, 0);
-  // private final SparkMaxPIDController_ driveMotorPIDController3 = new SparkMaxPIDController_(driveMotor3, NEO_DRIVE_CONVERSION_FACTOR, .25, 0);
-  // private final SparkMaxPIDController_ driveMotorPIDController4 = new SparkMaxPIDController_(driveMotor4, NEO_DRIVE_CONVERSION_FACTOR, .25, 0);
-
   private Vec2 targetVector = new Vec2();
   private Vec2 motorVector1 = new Vec2();
   private Vec2 motorVector2 = new Vec2();
   private Vec2 motorVector3 = new Vec2();
   private Vec2 motorVector4 = new Vec2();
+
+  private CvSink cvSink = null;
+  private Mat cameraFrame = null;
+  private UsbCamera camera = null;
+  private CvSource outputStream = null;
+  private AprilTagDetector detector = new AprilTagDetector();
+  private double distanceFromCenter = 0;
 
   private double startPigeon = 0;
   // private final float targetPosition = 0;
@@ -111,13 +112,16 @@ public class Robot extends TimedRobot {
     driveMotor3.setInverted(true);
     driveMotor4.setInverted(true);
 
-    // driveMotorPIDController1.setControlType(CANSparkMax.ControlType.kVoltage);
-    // driveMotorPIDController2.setControlType(CANSparkMax.ControlType.kVoltage); 
-    // driveMotorPIDController3.setControlType(CANSparkMax.ControlType.kVoltage);
-    // driveMotorPIDController4.setControlType(CANSparkMax.ControlType.kVoltage);
+    camera = CameraServer.startAutomaticCapture();
+    camera.setResolution(320, 240);
+    
 
-    System.out.println(absoluteMotorEncoder1.isConnected());
+    cvSink = CameraServer.getVideo();
+    detector.addFamily("tag16h5");
+    cameraFrame = new Mat(320, 240, CvType.CV_8UC3);
+    outputStream = CameraServer.putVideo("Rectangle", 320, 240);
 
+    
   }
 
   //Calibrates motors so that their relative encoders agree with absolute encoders
@@ -130,11 +134,7 @@ public class Robot extends TimedRobot {
 
   private void sharedInit() {
     calibrateEncoders();
-    wheel1Position = 0;
-    wheel2Position = 0;
-    wheel3Position = 0;
-    wheel4Position = 0;
-    startPigeon = pigeon.getYaw() / 360;
+    startPigeon = pigeon.getYaw() * Math.PI / 180;
   }
 
   /**
@@ -188,6 +188,41 @@ public class Robot extends TimedRobot {
     
     sharedInit();
 
+    Thread thread = new Thread() {
+      public void run() {
+        while (true) {
+          if (cvSink.grabFrame(cameraFrame) != 0) {
+            Imgproc.cvtColor(cameraFrame, cameraFrame, Imgproc.COLOR_RGB2GRAY);
+            AprilTagDetection[] detections = detector.detect(cameraFrame);
+            AprilTagPoseEstimator estimator = new AprilTagPoseEstimator(
+              new AprilTagPoseEstimator.Config(0.15295, 320, 240, 160, 120));
+            
+            for(AprilTagDetection det : detections) {
+              if (det.getDecisionMargin() < 50.0) {
+                continue;
+              }
+            
+              Transform3d trans = estimator.estimate(det);
+              SmartDashboard.putNumber("Camera X", trans.getRotation().getX());
+              SmartDashboard.putNumber("Camera Y", trans.getRotation().getY());
+              SmartDashboard.putNumber("Camera Z", trans.getRotation().getZ());
+      
+              Imgproc.putText(cameraFrame, "Confidence: " + det.getDecisionMargin(), new Point(det.getCenterX(), det.getCenterY()), 0, 1, new Scalar(255, 0, 0));
+              Imgproc.line(cameraFrame, new Point(det.getCornerX(0), det.getCornerY(0)), new Point(det.getCornerX(2), det.getCornerY(2)), new Scalar(255, 0, 0));
+              Imgproc.line(cameraFrame, new Point(det.getCornerX(1), det.getCornerY(1)), new Point(det.getCornerX(3), det.getCornerY(3)), new Scalar(255, 0, 0));
+              // Imgproc.rectangle(cameraFrame, new Point(det.getCornerX(0), det.getCornerY(0)), new Point(det.getCornerX(2), det.getCornerY(2)), new Scalar(255, 0, 0));
+              distanceFromCenter = det.getCenterY() - cameraFrame.cols() / 2;
+              SmartDashboard.putNumber("distance From Center", distanceFromCenter);
+              
+            }
+      
+            outputStream.putFrame(cameraFrame);
+          }
+        }
+      }
+    };
+
+    thread.start();
     // grabberMotor.setSelectedSensorPosition(grabberPosition);
     // grabberMotor.config_kP(0, 0.1);
     // grabberMotor.config_kI(0, 0);
@@ -215,29 +250,27 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("Motor 2 Absolute Position", absoluteMotorEncoder2.getAbsolutePosition());
     SmartDashboard.putNumber("Motor 3 Absolute Position", absoluteMotorEncoder3.getAbsolutePosition());
     SmartDashboard.putNumber("Motor 4 Absolute Position", absoluteMotorEncoder4.getAbsolutePosition());
-
+    
     SmartDashboard.putNumber("Motor 1 Position", motorPIDController1.motor.getEncoder().getPosition());
     SmartDashboard.putNumber("Motor 2 Position", motorPIDController2.motor.getEncoder().getPosition());
-
     
-    double yaw = pigeon.getYaw();
-    SmartDashboard.putNumber("Yaw", yaw);
-    SmartDashboard.putNumber("Mapped",pigeon.getYaw() / 360 - startPigeon);
-    
-    double x = controller.getRightX();
-    double y = controller.getRightY();
     double rotationX = controller.getLeftX();
 
-    double angle = Math.atan2(y, x);
-    double len = Math.sqrt(x * x + y * y);
+    if (controller.getStartButton()) {
+      if (distanceFromCenter > 10) {
+        rotationX = Math.min(.3, distanceFromCenter / 20);
+      } else if (distanceFromCenter < -10) {
+        rotationX = Math.max(-.3, distanceFromCenter / 20);
+      }
+    }
+     
+    double x = controller.getRightX();
+    double y = controller.getRightY();
 
+    double angle = Math.atan2(y, x) + (pigeon.getYaw() * Math.PI / 180 - startPigeon);
+    double len = Math.sqrt(x * x + y * y);
     double controllerPower = len * len;//controller.getRightTriggerAxis();
     double rotationPower = rotationX * rotationX;
-
-    double wheelChange1 = 0;
-    double wheelChange2 = 0;
-    double wheelChange3 = 0;
-    double wheelChange4 = 0;
 
     Vec2 motor1Vec = new Vec2(0, 0);
     Vec2 motor2Vec = new Vec2(0, 0);
@@ -278,76 +311,10 @@ public class Robot extends TimedRobot {
         motor4Vec = motorVector4.limitLength(1);
       }
 
-      wheel1DirTarget = motor1Vec.toRadians();
-      wheel2DirTarget = motor2Vec.toRadians();
-      wheel3DirTarget = motor3Vec.toRadians();
-      wheel4DirTarget = motor4Vec.toRadians();
-
-      double normalizedPosition1 = Math.IEEEremainder(wheel1Position, Math.PI * 2);
-      double normalizedPosition2 = Math.IEEEremainder(wheel2Position, Math.PI * 2);
-      double normalizedPosition3 = Math.IEEEremainder(wheel3Position, Math.PI * 2);
-      double normalizedPosition4 = Math.IEEEremainder(wheel4Position, Math.PI * 2);
-
-      double angleDiff1 = Math.PI - Math.abs(Math.abs(wheel1DirTarget - normalizedPosition1) - Math.PI);
-      double angleDiff2 = Math.PI - Math.abs(Math.abs(wheel2DirTarget - normalizedPosition2) - Math.PI);
-      double angleDiff3 = Math.PI - Math.abs(Math.abs(wheel3DirTarget - normalizedPosition3) - Math.PI);
-      double angleDiff4 = Math.PI - Math.abs(Math.abs(wheel4DirTarget - normalizedPosition4) - Math.PI);
-
-      //needs a whole ton of work because im pretty sure this dont work
-      
-      if(angleDiff1 > Math.PI / 2) {
-        if(wheel1DirTarget > 0) {
-          wheel1DirActual = wheel1DirTarget - Math.PI;
-        } else {
-          wheel1DirActual = wheel1DirTarget + Math.PI;
-        }
-        wheel1Sign = -1;
-      } else {
-        wheel1Sign = 1;
-        wheel1DirActual = wheel1DirTarget;
-      }
-
-      if(angleDiff2 > Math.PI / 2) {
-        if(wheel2DirTarget > 0) {
-          wheel2DirActual = wheel2DirTarget - Math.PI;
-        } else {
-          wheel2DirActual = wheel2DirTarget + Math.PI;
-        }
-        wheel2Sign = -1;
-      } else {
-        wheel2Sign = 1;
-        wheel2DirActual = wheel2DirTarget;
-      }
-
-      if(angleDiff3 > Math.PI / 2) {
-        if(wheel3DirTarget > 0) {
-          wheel3DirActual = wheel3DirTarget - Math.PI;
-        } else {
-          wheel3DirActual = wheel3DirTarget + Math.PI;
-        }
-        wheel3Sign = -1;
-      } else {
-        wheel3Sign = 1;
-        wheel3DirActual = wheel3DirTarget;
-      }
-
-      if(angleDiff4 > Math.PI / 2) {
-        if(wheel4DirTarget > 0) {
-          wheel4DirActual = wheel4DirTarget - Math.PI;
-        } else {
-          wheel4DirActual = wheel4DirTarget + Math.PI;
-        }
-        wheel4Sign = -1;
-      } else {
-        wheel4Sign = 1;
-        wheel4DirActual = wheel4DirTarget;
-      }
-
-      wheelChange1 = mod(((wheel1DirActual - normalizedPosition1) + Math.PI), Math.PI * 2) - Math.PI;
-      wheelChange2 = mod(((wheel2DirActual - normalizedPosition2) + Math.PI), Math.PI * 2) - Math.PI;
-      wheelChange3 = mod(((wheel3DirActual - normalizedPosition3) + Math.PI), Math.PI * 2) - Math.PI;
-      wheelChange4 = mod(((wheel4DirActual - normalizedPosition4) + Math.PI), Math.PI * 2) - Math.PI;
-      SmartDashboard.putNumber("wheel change 1", angleDiff1);
+      indWheelController1.updateInput(motor1Vec);
+      indWheelController2.updateInput(motor2Vec);
+      indWheelController3.updateInput(motor3Vec);
+      indWheelController4.updateInput(motor4Vec);
     }
 
     if(controller.getAButton()) {
@@ -383,26 +350,20 @@ public class Robot extends TimedRobot {
       grabberPositionRamp -= grabberRampFactor;
     }
 
-    // grabberMotor.set(TalonFXControlMode.Position, rotationX * 1000);
-        
-    driveMotor1.set(-motor1Vec.getLength() * wheel1Sign);
-    driveMotor2.set(-motor2Vec.getLength() * wheel2Sign);
-    driveMotor3.set(-motor3Vec.getLength() * wheel3Sign);
-    driveMotor4.set(-motor4Vec.getLength() * wheel4Sign);
+    driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
+    driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);
+    driveMotor3.set(-motor3Vec.getLength() * indWheelController3.wheelSign);
+    driveMotor4.set(-motor4Vec.getLength() * indWheelController4.wheelSign);
 
-    wheel1Position += wheelChange1;
-    wheel2Position += wheelChange2;
-    wheel3Position += wheelChange3;
-    wheel4Position += wheelChange4;
+    indWheelController1.update();
+    indWheelController2.update();
+    indWheelController3.update();
+    indWheelController4.update();
 
-    // System.out.println(targetVector.add(motorVector1).limit(1, 0).toAngle() / 360);
-    motorPIDController1.setPosition(-wheel1Position / Math.PI / 2 + 0.25);
-    motorPIDController2.setPosition(-wheel2Position / Math.PI / 2 + 0.25);
-    motorPIDController3.setPosition(-wheel3Position / Math.PI / 2 + 0.25);
-    motorPIDController4.setPosition(-wheel4Position / Math.PI / 2 + 0.25);
-
-    SmartDashboard.putNumber("Position", wheel1Position);
-    // grabberMotor.set(TalonFXControlMode.Position, grabberPositionRamp);
+    motorPIDController1.setPosition(-indWheelController1.wheelPosition / Math.PI / 2 + 0.25);
+    motorPIDController2.setPosition(-indWheelController2.wheelPosition / Math.PI / 2 + 0.25);
+    motorPIDController3.setPosition(-indWheelController3.wheelPosition / Math.PI / 2 + 0.25);
+    motorPIDController4.setPosition(-indWheelController4.wheelPosition / Math.PI / 2 + 0.25);
   }
 
   @Override
