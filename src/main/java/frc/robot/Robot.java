@@ -4,22 +4,21 @@
 
 package frc.robot;
 
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
+import java.util.Set;
 
-import edu.wpi.first.apriltag.AprilTagDetector;
-import edu.wpi.first.cameraserver.CameraServer;
-import edu.wpi.first.cscore.CvSink;
-import edu.wpi.first.cscore.CvSource;
-import edu.wpi.first.cscore.UsbCamera;
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.DutyCycleEncoder;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+
 
 /**
  * The VM is configured to automatically run this class, and to call the functions corresponding to
@@ -35,21 +34,32 @@ public class Robot extends TimedRobot {
   private XboxController controller;
   private Swerve swerveDriveTrain = new Swerve();
   
-  private DigitalInput limitSwitch = new DigitalInput(4);
+  private DigitalInput limitSwitch = new DigitalInput(6); //pressed = false
+  private boolean jLimit = true;
 
   // private final TalonFX grabberMotor = new TalonFX(9);
+  private CANSparkMax wristMotor = new CANSparkMax(10, MotorType.kBrushless);
+  private DutyCycleEncoder wristEncoder = new DutyCycleEncoder(7);
+
+  private CANSparkMax armMotor = new CANSparkMax(11, MotorType.kBrushless);
+  private SparkMaxPIDController_ armPID = new SparkMaxPIDController_(armMotor, 125.709);
+  private CANSparkMax armMotor2 = new CANSparkMax(12, MotorType.kBrushless);
+  private DutyCycleEncoder armEncoder = new DutyCycleEncoder(9);
+
+  private double armPosition = 0;
+  private double armTarget = 0;
+
+  private final SparkMaxPIDController_ wristPID = new SparkMaxPIDController_(wristMotor); //needs counts
+  private double wristPosition = 0;
+  private double wristTarget = 0;
 
   private double grabberPosition = 0;
+  private double previousGrabberPosition = 0;
   private double grabberPositionRamp = 0;
   private double grabberRampFactor = 100;
   private boolean homeGrabber = false;
-
-  private CvSink cvSink = null;
-  private Mat cameraFrame = null;
-  private UsbCamera camera = null;
-  private CvSource outputStream = null;
-  private AprilTagDetector detector = new AprilTagDetector();
-  private double distanceFromCenter = 0;
+  private boolean opened = false;
+  private int grabberDirection = 1;
 
   // private final float targetPosition = 0;
   /**
@@ -67,15 +77,6 @@ public class Robot extends TimedRobot {
 
     swerveDriveTrain.robotInit();
 
-    camera = CameraServer.startAutomaticCapture();
-    camera.setResolution(320, 240);
-    
-
-    cvSink = CameraServer.getVideo();
-    detector.addFamily("tag16h5");
-    cameraFrame = new Mat(320, 240, CvType.CV_8UC3);
-    outputStream = CameraServer.putVideo("Rectangle", 320, 240);
-
     
   }
 
@@ -87,6 +88,62 @@ public class Robot extends TimedRobot {
   private void sharedInit() {
     calibrateEncoders();
     swerveDriveTrain.sharedInit();
+    armMotor2.follow(armMotor, true);
+    armPID.disableMotor();
+    // wristMotor.getEncoder().setPosition(0);
+    // grabberMotor.set(TalonFXControlMode.Position, -10000);
+    // grabberMotor.setSelectedSensorPosition(-10000);
+    // armPID.disableMotor();
+    grabberPosition = -10000;
+    double e = armEncoder.get();
+
+    while (e > 1.0) {
+      e -= 1.0;
+    }
+    
+    while (e < 0.0) {
+      e += 1.0;
+    }
+
+    double ew = wristEncoder.get();
+
+    while (ew > 1.0) {
+      ew -= 1.0;
+    }
+    
+    while (ew < 0.0) {
+      ew += 1.0;
+    }
+
+    // armPosition = e;
+    // armTarget = e;
+    armPosition = e;
+    armTarget = e;
+    armPID.setReferencePosition(e);
+    armPID.setPosition(e);
+
+    wristPosition = ew;
+    wristTarget = ew;
+    wristPID.setReferencePosition(ew);
+    wristPID.setPosition(ew);
+    
+    opened = false;
+    // double encoderPosition = wristEncoder.get();
+
+    // while (encoderPosition > 1.0) {
+    //   encoderPosition -= 1.0;
+    // }
+
+    // while (encoderPosition < 0) {
+    //   encoderPosition += 1.0;
+    // }
+
+    // if (encoderPosition < .5) {
+    //   encoderPosition += 1.0;
+    // }
+
+    // wristMotor.getEncoder().setPosition(encoderPosition * 100);
+    armPID.enableMotor();
   }
 
   /**
@@ -121,11 +178,7 @@ public class Robot extends TimedRobot {
     if (m_autonomousCommand != null) {
       m_autonomousCommand.schedule();
     }
-
   }
-
-
-
 
   /** This function is called periodically during autonomous. */
   @Override
@@ -141,10 +194,20 @@ public class Robot extends TimedRobot {
     sharedInit();
 
     // grabberMotor.setSelectedSensorPosition(grabberPosition);
-    // grabberMotor.config_kP(0, 0.1);
+    // grabberMotor.config_kP(0, 0.4);
     // grabberMotor.config_kI(0, 0);
     // grabberMotor.config_kD(0, 0);
     // grabberMotor.config_kF(0, 0);
+
+    // wristPIDController.setVariables(
+    //   0.005,
+    //   0.0000005,
+    //   0,
+    //   0,
+    //   0,
+    //   1.0,
+    //   -1.0);
+
     homeGrabber = false;
 
 
@@ -155,48 +218,181 @@ public class Robot extends TimedRobot {
     // beltController.setAngle(360);
   }
 
+  private double[] defaults = {0, 0, 0, 0, 0, 0};
+
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
     NetworkTable limelight = NetworkTableInstance.getDefault().getTable("limelight");
     
-    SmartDashboard.putNumber("tx", limelight.getEntry("tx").getDouble(-9999.314159));
-    SmartDashboard.putNumber("ty", limelight.getEntry("ty").getDouble(-9999.314159));
-
-    if(controller.getAButton()) {
-      homeGrabber = true;
+    Set<String> strings = limelight.getKeys();
+    
+    for(String s : strings) {
+      SmartDashboard.putString(s, "yes");
     }
 
-    SmartDashboard.putBoolean("limit switch", limitSwitch.get());
+    double[] pose = limelight.getEntry("botpose").getDoubleArray(defaults);
+    double tx = pose[0];
+    double ty = pose[1];
+    double tz = pose[2];
+    double rx = pose[3];
+    double ry = pose[4];
+    double rz = pose[5];
 
-    if(homeGrabber) {
-      grabberRampFactor = 60;
-      grabberPosition = 4000;
+    
+    SmartDashboard.putNumber("tx", tx);
+    SmartDashboard.putNumber("ty", ty);
+    SmartDashboard.putNumber("april rotation", rz);
+    // SmartDashboard.putNumber("wrist", wristEncoder.get());
+
+    // if(controller.getAButton()) {
+    //   homeGrabber = true;
+    // }
+
+    // if(homeGrabber) {
+    //   grabberRampFactor = 60;
+    //   grabberPosition = 4000;
+    // }
+
+    // if(controller.getXButton()) {
+    //   armPID.enableMotor();
+    // } else {
+    //   armPID.disableMotor();
+    // }
+
+    double b = controller.getLeftTriggerAxis();
+    double c = controller.getRightTriggerAxis();
+    double e = armEncoder.get();
+
+    while(e > 1.0) {
+      e -= 1.0;
+    }
+    while(e < 0.0) {
+      e += 1.0;
     }
 
-    if(limitSwitch.get() && homeGrabber) {
-      // grabberMotor.setSelectedSensorPosition(400);
-      homeGrabber = false;
-      grabberPosition = 0;
-      grabberPositionRamp = 400;
-      grabberRampFactor = 100;
+    double ew = wristEncoder.get();
+
+    while(ew > 1.0) {
+      ew -= 1.0;
+    }
+    while(ew < 0.0) {
+      ew += 1.0;
     }
 
-    if(!homeGrabber) {
-      if(controller.getXButton()) {
-        grabberPosition = -4500;
-      } else {
-        grabberPosition = 0;
+    if(b > 0.1) {
+      armTarget = 0.8;
+      wristTarget = 0.8;
+    } else if(c > 0.1) {
+      armTarget = 0.5;
+      wristTarget = 0.5;
+    }
+
+    if(armPosition < armTarget && e < 0.8) {
+      armPosition += 0.001;
+    }
+    if(armPosition > armTarget && e > 0.5) {
+      armPosition -= 0.001;
+    }
+    armPID.setPosition(armPosition);
+
+    if(wristPosition < wristTarget && ew < 0.8) {
+      wristPosition += 0.001;
+    }
+    if(wristPosition > wristTarget && ew > 0.5) {
+      wristPosition -= 0.001;
+    }
+    wristPID.setPosition(wristPosition);
+
+    SmartDashboard.putNumber("arm target", wristTarget);
+    SmartDashboard.putNumber("arm enc", wristPID.motor.getEncoder().getPosition());
+    SmartDashboard.putNumber("armEncoder", ew);
+    SmartDashboard.putNumber("armPosition", wristPosition);
+
+
+    // if(limitSwitch.get() && homeGrabber) {
+    //   homeGrabber = false;
+    //   grabberPosition = 0;
+    //   grabberPositionRamp = 400;
+    //   grabberRampFactor = 100;
+    // }
+
+    // if(!homeGrabber) {
+    //   if(controller.getXButton()) {
+    //     grabberPosition = -4500;
+    //   } else {
+    //     grabberPosition = 0;
+    //   }
+    // }
+
+    // if(grabberPositionRamp + grabberRampFactor * 5 < grabberPosition) {
+    //   grabberPositionRamp += grabberRampFactor;
+    // } else if(grabberPositionRamp - grabberRampFactor * 5 > grabberPosition) {
+    //   grabberPositionRamp -= grabberRampFactor;
+    // }
+
+    
+    // if (controller.getStartButton()) {
+      swerveDriveTrain.update(controller);
+    // }
+    
+    // wristTarget += controller.getRightX() / 10;
+
+    if (Math.abs(controller.getRightX()) >= .05) {
+      grabberPosition += controller.getRightX() * 200;
+    }
+
+    
+    SmartDashboard.putNumber("DIrection", grabberDirection);
+    if (grabberPosition == previousGrabberPosition && limitSwitch.get()) {
+      if (grabberDirection == -1 && grabberPosition + 500 < 0) {
+        grabberPosition += 250;
+
       }
     }
 
-    if(grabberPositionRamp + grabberRampFactor * 5 < grabberPosition) {
-      grabberPositionRamp += grabberRampFactor;
-    } else if(grabberPositionRamp - grabberRampFactor * 5 > grabberPosition) {
-      grabberPositionRamp -= grabberRampFactor;
+    if(grabberPosition > 0 && opened) {
+      grabberPosition = 0;
+    } else if (grabberPosition < -6000 && opened) {
+      grabberPosition = -6000;
     }
 
-    swerveDriveTrain.update(controller);
+    
+
+    //42
+    // SmartDashboard.putNumber("Wrist position", wristMotor.getEncoder().getPosition());
+    // SmartDashboard.putNumber("Wrist target", wristTarget);
+
+    // SmartDashboard.putNumber("grab pos", grabberMotor.getSelectedSensorPosition());
+    SmartDashboard.putNumber("grab target", grabberPosition);
+
+    SmartDashboard.putBoolean("limit", limitSwitch.get());
+    // SmartDashboard.putNumber("Wrist", wristEncoder.get());
+    // SmartDashboard.putNumber("WristE", wristMotor.getEncoder().getPosition());
+
+    // if (controller.getAButton()) {
+    //   wristTarget = 105;
+    // } else if (controller.getBButton()) {
+    //   wristTarget = 56;
+    // } else {
+    //   wristTarget = 85; // rest
+    // }
+    
+    // wristPIDController.setPosition(wristTarget);
+    if(!limitSwitch.get() && jLimit) {
+      // grabberMotor.setSelectedSensorPosition(125);
+      grabberPosition = 0;
+      // grabberMotor.set(TalonFXControlMode.Position, 0);
+      opened = true;
+    }
+
+    if (controller.getBackButton()) {
+      // grabberMotor.set(TalonFXControlMode.Position, grabberPosition);
+    }
+
+    jLimit = limitSwitch.get();
+    grabberDirection = (int) Math.signum(grabberPosition - previousGrabberPosition);
+    previousGrabberPosition = grabberPosition;
   }
 
   @Override

@@ -50,9 +50,25 @@ public class Swerve {
     private double startPigeon = 0;
 
     private boolean homing;
-    private double kP = 4;
+    private double rotationX;
+    private double rotationXTarget;
+    
+    private double kP = 0.7;
+    private double kI = 0.0001;
+    private double kD = 0;
+    
+    private double p = 0;
+    private double i = 0;
+    private double d = 0;
+    private double lastP = 0;
 
-    public Swerve() {}
+    private long lastTime = 0;
+    private long currentTime = 0;
+
+    public Swerve() {
+        lastTime = System.currentTimeMillis();
+        currentTime = System.currentTimeMillis();
+    }
 
     public void robotInit() {
         driveMotor3.setInverted(true);
@@ -61,8 +77,8 @@ public class Swerve {
 
     public void sharedInit() {
         startPigeon = pigeon.getYaw() * Math.PI / 180;
-
     }
+
     public void calibrateEncoders() {
         motorPIDController1.setReferencePositionNoOffset(absoluteMotorEncoder1.getAbsolutePosition());
         motorPIDController2.setReferencePositionNoOffset(absoluteMotorEncoder2.getAbsolutePosition());
@@ -71,28 +87,29 @@ public class Swerve {
     }
 
     public void update(XboxController controller) {
-        double rotationX;
+        double delta = (currentTime - lastTime) * 0.001;
         double x = controller.getRightX();
         double y = controller.getRightY();
 
         homing = controller.getStartButton();
         
         if(!homing) {
-            rotationX = controller.getLeftX();
+            rotationXTarget = controller.getLeftX();
+            p = 0;
+            i = 0;
+            d = 0;
         } else {
-            rotationX = Math.min(1, Math.max((startPigeon - pigeon.getYaw() * Math.PI / 180) / (-2 * Math.PI) * kP, -1));
+            p = startPigeon - pigeon.getYaw() * Math.PI / 180;
+            i += p * delta;
+            d = (p - lastP) / delta;
+            lastP = p;
+            rotationXTarget = -Math.min(1, Math.max(p * kP + i * kI + d * kD, -1));
         }
+
+        rotationX += (rotationXTarget - rotationX) * 0.1;
 
         SmartDashboard.putNumber("rotationX", rotationX);
-        SmartDashboard.putBoolean("homing", homing);
-
-        if (controller.getBackButtonPressed()) {
-            if (!gyroMode) {
-                startPigeon = pigeon.getYaw() * Math.PI / 180;
-            }
-
-            gyroMode = !gyroMode;
-        }
+        SmartDashboard.putNumber("gyroRot", pigeon.getYaw());
 
         double angle = Math.atan2(y, x) + (gyroMode ? (pigeon.getYaw() * Math.PI / 180 - startPigeon) : 0);
 
@@ -145,21 +162,23 @@ public class Swerve {
             indWheelController4.updateInput(motor4Vec);
         }
 
-        driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
-        driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);
-        driveMotor3.set(-motor3Vec.getLength() * indWheelController3.wheelSign);
-        driveMotor4.set(-motor4Vec.getLength() * indWheelController4.wheelSign);
+        // driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
+        // driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);
+        // driveMotor3.set(-motor3Vec.getLength() * indWheelController3.wheelSign);
+        // driveMotor4.set(-motor4Vec.getLength() * indWheelController4.wheelSign);
 
         indWheelController1.update();
         indWheelController2.update();
         indWheelController3.update();
         indWheelController4.update();
 
-        motorPIDController1.setPosition(-indWheelController1.wheelPosition / Math.PI / 2 + 0.25);
-        motorPIDController2.setPosition(-indWheelController2.wheelPosition / Math.PI / 2 + 0.25);
-        motorPIDController3.setPosition(-indWheelController3.wheelPosition / Math.PI / 2 + 0.25);
-        motorPIDController4.setPosition(-indWheelController4.wheelPosition / Math.PI / 2 + 0.25);
+        // motorPIDController1.setPosition(-indWheelController1.wheelPosition / Math.PI / 2 + 0.25);
+        // motorPIDController2.setPosition(-indWheelController2.wheelPosition / Math.PI / 2 + 0.25);
+        // motorPIDController3.setPosition(-indWheelController3.wheelPosition / Math.PI / 2 + 0.25);
+        // motorPIDController4.setPosition(-indWheelController4.wheelPosition / Math.PI / 2 + 0.25);
         
+        lastTime = currentTime;
+        currentTime = System.currentTimeMillis();
     }
     
 }
