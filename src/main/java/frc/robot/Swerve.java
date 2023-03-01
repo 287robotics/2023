@@ -162,20 +162,20 @@ public class Swerve {
             indWheelController4.updateInput(motor4Vec);
         }
 
-        // driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
-        // driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);
-        // driveMotor3.set(-motor3Vec.getLength() * indWheelController3.wheelSign);
-        // driveMotor4.set(-motor4Vec.getLength() * indWheelController4.wheelSign);
+        driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
+        driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);
+        driveMotor3.set(-motor3Vec.getLength() * indWheelController3.wheelSign);
+        driveMotor4.set(-motor4Vec.getLength() * indWheelController4.wheelSign);
 
         indWheelController1.update();
         indWheelController2.update();
         indWheelController3.update();
         indWheelController4.update();
 
-        // motorPIDController1.setPosition(-indWheelController1.wheelPosition / Math.PI / 2 + 0.25);
-        // motorPIDController2.setPosition(-indWheelController2.wheelPosition / Math.PI / 2 + 0.25);
-        // motorPIDController3.setPosition(-indWheelController3.wheelPosition / Math.PI / 2 + 0.25);
-        // motorPIDController4.setPosition(-indWheelController4.wheelPosition / Math.PI / 2 + 0.25);
+        motorPIDController1.setPosition(-indWheelController1.wheelPosition / Math.PI / 2 + 0.25);
+        motorPIDController2.setPosition(-indWheelController2.wheelPosition / Math.PI / 2 + 0.25);
+        motorPIDController3.setPosition(-indWheelController3.wheelPosition / Math.PI / 2 + 0.25);
+        motorPIDController4.setPosition(-indWheelController4.wheelPosition / Math.PI / 2 + 0.25);
         
         lastTime = currentTime;
         currentTime = System.currentTimeMillis();

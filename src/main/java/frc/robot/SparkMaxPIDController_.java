@@ -97,7 +97,6 @@ public class SparkMaxPIDController_ {
     }
 
     public void setPosition(double positionInRotations) {
-            
         pidController.setReference((positionInRotations + offset) * countsPerRotation, controlType);
     }
 
