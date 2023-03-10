@@ -1,5 +1,7 @@
 package frc.robot;
 
+import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
+import com.ctre.phoenix.motorcontrol.can.TalonFX;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
@@ -7,21 +9,30 @@ import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.DutyCycleEncoder;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.sequence.Sequence;
+import frc.robot.sequence.Timer;
 
 public class Arm {
+    private static final Sequence homeSequence = new Sequence(Timer.create(0, () -> {}));
+    private static final double ARM_MIN = 0.32; // absolutely farthest should be 0.33
+    private static final double ARM_MAX = 0.86; // absolute farthest should be 0.82
 
-    // private final TalonFX grabberMotor = new TalonFX(9);
+    private static final double WRIST_MIN = -0.5;
+    private static final double WRIST_MAX = 0.17;
+
+    private final TalonFX grabberMotor = new TalonFX(9);
     private CANSparkMax wristMotor = new CANSparkMax(10, MotorType.kBrushless);
-    private SparkMaxPIDController_ wristPID = new SparkMaxPIDController_(wristMotor, 100, 0.2); //needs counts
+    private SparkMaxPIDController_ wristPID = new SparkMaxPIDController_(wristMotor, 100, 0.5); //needs counts
     private DutyCycleEncoder wristEncoder = new DutyCycleEncoder(7);
 
     private CANSparkMax armMotor = new CANSparkMax(11, MotorType.kBrushless);
-    private SparkMaxPIDController_ armPID = new SparkMaxPIDController_(armMotor, 125.709, 0.5);
+    private SparkMaxPIDController_ armPID = new SparkMaxPIDController_(armMotor, 125.709, .7);
     private CANSparkMax armMotor2 = new CANSparkMax(12, MotorType.kBrushless);
     private DutyCycleEncoder armEncoder = new DutyCycleEncoder(9);
 
     private double armPosition = 0;
     private double armTarget = 0;
+    private double armSpeed = .004;
 
     private double wristPosition = 0;
     private double wristTarget = 0;
@@ -38,7 +49,7 @@ public class Arm {
     private boolean enabled = false;
 
     private double accum = 0;
-
+    
     private DigitalInput limitSwitch = new DigitalInput(6); //pressed = false
     private boolean jLimit = true;
 
@@ -84,11 +95,11 @@ public class Arm {
         wristPID.setReferencePosition(ew);
         wristPID.setPosition(ew);
 
-        lastE = wristPID.getPosition();
+        lastE = armPID.getPosition();
         SmartDashboard.putNumber("lastE", lastE);
 
-        // armPID.enableMotor(); //this clearly doesnt work
-        // wristPID.enableMotor();
+        armPID.enableMotor(); //this clearly doesnt work
+        wristPID.enableMotor();
 
         opened = false;
 
@@ -97,10 +108,9 @@ public class Arm {
 
     private double lastE = 0;
 
-    public void update(XboxController controller) {
-        double b = controller.getLeftTriggerAxis();
-        double c = controller.getRightTriggerAxis();
-        boolean gamer = controller.getXButton();
+    public void update(XboxController controller, XboxController controller2) {
+        double ry = controller2.getRightY();
+        double ly = controller2.getLeftY();
         double e = armEncoder.get();
         double ew = wristEncoder.get();
         
@@ -118,34 +128,43 @@ public class Arm {
             e += 1.0;
         }
 
-        accum = wristPID.getPosition();
+        accum = armPID.getPosition();
 
-        if (gamer) {
-            wristTarget = .29;
+        if (controller.getXButton()) {
+
         } else if (controller.getAButton()) {
-            wristTarget = -.2;
+
         }
 
-        if(b > 0.1) {
-            armTarget = 0.7;
-        } else if(c > 0.1) {
-            armTarget = 0.6;
+        if(ry > 0.1) {
+            armTarget = Math.min(ARM_MAX, armTarget + ry * .004);
+        } else if (ry < -0.1) {
+            armTarget = Math.max(ARM_MIN, armTarget + ry * .004);
+        }
+
+        if (ly < -.1) {
+            wristTarget = Math.min(WRIST_MAX, wristTarget - ly * .004);
+        } else if (ly > .1) {
+            wristTarget = Math.max(WRIST_MIN, wristTarget - ly * .004);
+
+            
         }
         
-        if(armPosition < armTarget && e < 0.7) {
-            armPosition = Math.min(0.7, armPosition + 0.001);
+        if(armPosition < armTarget && e < ARM_MAX) {
+            armPosition = Math.min(ARM_MAX, armPosition + armSpeed);
         }
-        if(armPosition > armTarget && e > 0.6) {
-            armPosition = Math.max(0.6, armPosition - 0.001);
+        if(armPosition > armTarget && e > ARM_MIN) {
+            armPosition = Math.max(ARM_MIN, armPosition - armSpeed);
         }
         armPID.setPosition(armPosition);
 
-        if(wristPosition < wristTarget && ew < .3) {
-            wristPosition = Math.min(0.3, wristPosition + 0.001);
+        if(wristPosition < wristTarget && ew < WRIST_MAX) {
+            wristPosition = Math.min(WRIST_MAX, wristPosition + 0.004);
         }
-        if(wristPosition > wristTarget && ew > -.28) {
-            wristPosition = Math.max(-0.28, wristPosition - 0.001);
+        if(wristPosition > wristTarget && ew > WRIST_MIN) {
+            wristPosition = Math.max(WRIST_MIN, wristPosition - 0.004);
         }
+
         wristPID.setPosition(wristPosition);
 
         SmartDashboard.putNumber("wristEncoder", wristPID.getPosition());
@@ -160,61 +179,39 @@ public class Arm {
 
         SmartDashboard.putNumber("Accumulator", accum);
 
-        // if(!enabled && enableTime < System.currentTimeMillis()) {
-        //     wristPID.enableMotor();
-        // }
-
-
-        // if(limitSwitch.get() && homeGrabber) {
-        //   homeGrabber = false;
-        //   grabberPosition = 0;
-        //   grabberPositionRamp = 400;
-        //   grabberRampFactor = 100;
-        // }
-
-        // if(!homeGrabber) {
-        //   if(controller.getXButton()) {
-        //     grabberPosition = -4500;
-        //   } else {
-        //     grabberPosition = 0;
-        //   }
-        // }
-
-        // if(grabberPositionRamp + grabberRampFactor * 5 < grabberPosition) {
-        //   grabberPositionRamp += grabberRampFactor;
-        // } else if(grabberPositionRamp - grabberRampFactor * 5 > grabberPosition) {
-        //   grabberPositionRamp -= grabberRampFactor;
-        // }
-
-
-        if (Math.abs(controller.getRightX()) >= .05) {
-        grabberPosition += controller.getRightX() * 200;
+        if(!enabled && enableTime < System.currentTimeMillis()) {
+            wristPID.enableMotor();
         }
 
-        
-        SmartDashboard.putNumber("DIrection", grabberDirection);
+        if (Math.abs(controller2.getRightTriggerAxis()) >= .05) {
+            grabberPosition += controller2.getRightTriggerAxis() * 200;
+        }
+
+        if (Math.abs(controller2.getLeftTriggerAxis()) >= .05) {
+            grabberPosition -= controller2.getLeftTriggerAxis() * 200;
+        }
+
         if (grabberPosition == previousGrabberPosition && limitSwitch.get()) {
-        if (grabberDirection == -1 && grabberPosition + 500 < 0) {
-            grabberPosition += 250;
-
-        }
+            if (grabberDirection == -1 && grabberPosition + 500 < 0) {
+                grabberPosition += 250;
+            }
         }
 
         if(grabberPosition > 0 && opened) {
-        grabberPosition = 0;
+            grabberPosition = 0;
         } else if (grabberPosition < -6000 && opened) {
-        grabberPosition = -6000;
+            grabberPosition = -6000;
         }
 
         if(!limitSwitch.get() && jLimit) {
-            // grabberMotor.setSelectedSensorPosition(125);
+            grabberMotor.setSelectedSensorPosition(125);
             grabberPosition = 0;
-            // grabberMotor.set(TalonFXControlMode.Position, 0);
+            grabberMotor.set(TalonFXControlMode.Position, 0);
             opened = true;
           }
       
           if (controller.getBackButton()) {
-            // grabberMotor.set(TalonFXControlMode.Position, grabberPosition);
+            grabberMotor.set(TalonFXControlMode.Position, grabberPosition);
           }
       
           jLimit = limitSwitch.get();

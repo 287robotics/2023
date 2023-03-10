@@ -1,5 +1,6 @@
 package frc.robot;
 
+import com.ctre.phoenix.sensors.CANCoder;
 import com.ctre.phoenix.sensors.Pigeon2;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
@@ -10,20 +11,20 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Swerve {
-    DutyCycleEncoder absoluteMotorEncoder1 = new DutyCycleEncoder(new DigitalInput(0)); // Strait position: .179
-    DutyCycleEncoder absoluteMotorEncoder2 = new DutyCycleEncoder(new DigitalInput(1)); // Strait position: .240
-    DutyCycleEncoder absoluteMotorEncoder3 = new DutyCycleEncoder(new DigitalInput(2)); // Strait position: .897
-    DutyCycleEncoder absoluteMotorEncoder4 = new DutyCycleEncoder(new DigitalInput(3)); // Strait position: .240
+    CANCoder absMotorEncoder1 = new CANCoder(15);
+    CANCoder absMotorEncoder2 = new CANCoder(16);
+    CANCoder absMotorEncoder3 = new CANCoder(17);
+    CANCoder absMotorEncoder4 = new CANCoder(14);
 
     private final CANSparkMax motor1 = new CANSparkMax(1, MotorType.kBrushless);
     private final CANSparkMax motor2 = new CANSparkMax(3, MotorType.kBrushless);
-    private final CANSparkMax motor3 = new CANSparkMax(5, MotorType.kBrushless);
-    private final CANSparkMax motor4 = new CANSparkMax(7, MotorType.kBrushless);
+    private final CANSparkMax motor3 = new CANSparkMax(7, MotorType.kBrushless);
+    private final CANSparkMax motor4 = new CANSparkMax(5, MotorType.kBrushless);
 
     private final CANSparkMax driveMotor1 = new CANSparkMax(2, MotorType.kBrushless);
     private final CANSparkMax driveMotor2 = new CANSparkMax(4, MotorType.kBrushless);
-    private final CANSparkMax driveMotor3 = new CANSparkMax(6, MotorType.kBrushless);
-    private final CANSparkMax driveMotor4 = new CANSparkMax(8, MotorType.kBrushless);
+    private final CANSparkMax driveMotor3 = new CANSparkMax(8, MotorType.kBrushless);
+    private final CANSparkMax driveMotor4 = new CANSparkMax(6, MotorType.kBrushless);
     private final Pigeon2 pigeon = new Pigeon2(10);
     
     private IndWheelController indWheelController1 = new IndWheelController();
@@ -34,12 +35,13 @@ public class Swerve {
     private final double NEO_CONVERSION_FACTOR = -13.71;
     private final double NEO_DRIVE_CONVERSION_FACTOR = 7.36;
 
-    private final SparkMaxPIDController_ motorPIDController1 = new SparkMaxPIDController_(motor1, NEO_CONVERSION_FACTOR, 1, 0.179 + 0.5 + 0.25);
-    private final SparkMaxPIDController_ motorPIDController2 = new SparkMaxPIDController_(motor2, NEO_CONVERSION_FACTOR, 1, 0.240 + 0.5 + 0.25);
-    private final SparkMaxPIDController_ motorPIDController3 = new SparkMaxPIDController_(motor3, NEO_CONVERSION_FACTOR, 1, 0.898954 - 0.5 + 0.25);
-    private final SparkMaxPIDController_ motorPIDController4 = new SparkMaxPIDController_(motor4, NEO_CONVERSION_FACTOR, 1, 0.963311 - 0.5 + 0.25);
-
+    private final SparkMaxPIDController_ motorPIDController1 = new SparkMaxPIDController_(motor1, NEO_CONVERSION_FACTOR, 1, .3 - .5 - .25); // WHAT THE FUCK
+    private final SparkMaxPIDController_ motorPIDController2 = new SparkMaxPIDController_(motor2, NEO_CONVERSION_FACTOR, 1, .652 + .5 + .25);
+    private final SparkMaxPIDController_ motorPIDController3 = new SparkMaxPIDController_(motor3, NEO_CONVERSION_FACTOR, 1, .519 - .5 - .25);
+    private final SparkMaxPIDController_ motorPIDController4 = new SparkMaxPIDController_(motor4, NEO_CONVERSION_FACTOR, 1, .985 - .5 - .25);
+    
     private Vec2 targetVector = new Vec2();
+
     private Vec2 motorVector1 = new Vec2();
     private Vec2 motorVector2 = new Vec2();
     private Vec2 motorVector3 = new Vec2();
@@ -71,7 +73,7 @@ public class Swerve {
     }
 
     public void robotInit() {
-        driveMotor3.setInverted(true);
+        driveMotor3.setInverted(false);
         driveMotor4.setInverted(true);
     }
 
@@ -80,10 +82,21 @@ public class Swerve {
     }
 
     public void calibrateEncoders() {
-        motorPIDController1.setReferencePositionNoOffset(absoluteMotorEncoder1.getAbsolutePosition());
-        motorPIDController2.setReferencePositionNoOffset(absoluteMotorEncoder2.getAbsolutePosition());
-        motorPIDController3.setReferencePositionNoOffset(absoluteMotorEncoder3.getAbsolutePosition());
-        motorPIDController4.setReferencePositionNoOffset(absoluteMotorEncoder4.getAbsolutePosition());
+        motorPIDController1.setReferencePositionNoOffset(absMotorEncoder1.getAbsolutePosition() / 360);
+        motorPIDController2.setReferencePositionNoOffset(absMotorEncoder2.getAbsolutePosition() / 360);
+        motorPIDController3.setReferencePositionNoOffset(absMotorEncoder3.getAbsolutePosition() / 360);
+        motorPIDController4.setReferencePositionNoOffset(absMotorEncoder4.getAbsolutePosition() / 360);
+    }
+
+    public void smartDashboard() {
+        SmartDashboard.putNumber("absMotorEncoder1", absMotorEncoder1.getAbsolutePosition() / 360);
+        SmartDashboard.putNumber("absMotorEncoder2", absMotorEncoder2.getAbsolutePosition() / 360);
+        SmartDashboard.putNumber("absMotorEncoder3", absMotorEncoder3.getAbsolutePosition() / 360);
+        SmartDashboard.putNumber("absMotorEncoder4", absMotorEncoder4.getAbsolutePosition() / 360);
+        SmartDashboard.putNumber("relMotorEncoder1", motorPIDController1.motor.getEncoder().getPosition());
+        SmartDashboard.putNumber("relMotorEncoder2", motorPIDController2.motor.getEncoder().getPosition());
+        SmartDashboard.putNumber("relMotorEncoder3", motorPIDController3.motor.getEncoder().getPosition());
+        SmartDashboard.putNumber("relMotorEncoder4", motorPIDController4.motor.getEncoder().getPosition());
     }
 
     public void update(XboxController controller) {
@@ -124,16 +137,16 @@ public class Swerve {
 
         if(len >= 0.1 || Math.abs(rotationX) >= 0.1) {
             if (rotationX <= -.1) {
-                motorVector1 = new Vec2(-rotationPower * Math.cos(Math.PI / 4), -rotationPower * Math.sin(Math.PI / 4));
-                motorVector2 = new Vec2(rotationPower * Math.cos(3 * Math.PI / 4), rotationPower * Math.sin(3 * Math.PI / 4));
-                motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4), -rotationPower * Math.sin(-3 * Math.PI / 4));
-                motorVector4 = new Vec2(rotationPower * Math.cos(-Math.PI / 4), rotationPower * Math.sin(-Math.PI / 4));
+                motorVector1 = new Vec2(-rotationPower * Math.cos(Math.PI / 4 - Math.PI / 2), -rotationPower * Math.sin(Math.PI / 4 - Math.PI / 2));
+                motorVector2 = new Vec2(rotationPower * Math.cos(3 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(3 * Math.PI / 4 - Math.PI / 2));
+                motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI / 2), -rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI / 2));
+                motorVector4 = new Vec2(rotationPower * Math.cos(-Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(-Math.PI / 4 - Math.PI / 2));
                 
             } else if (rotationX >= .1) {
-                motorVector1 = new Vec2(-rotationPower * Math.cos(-Math.PI / 4 - Math.PI / 2), -rotationPower * Math.sin(-Math.PI / 4 - Math.PI / 2));
-                motorVector2 = new Vec2(rotationPower * Math.cos(Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(Math.PI / 4 - Math.PI / 2));
-                motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI), -rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI));
-                motorVector4 = new Vec2(rotationPower * Math.cos(5 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(5 * Math.PI / 4 - Math.PI / 2));
+                motorVector1 = new Vec2(rotationPower * Math.cos(-Math.PI / 4), rotationPower * Math.sin(-Math.PI / 4));
+                motorVector2 = new Vec2(-rotationPower * Math.cos(Math.PI / 4), -rotationPower * Math.sin(Math.PI / 4));
+                motorVector3 = new Vec2(rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI / 2));
+                motorVector4 = new Vec2(-rotationPower * Math.cos(5 * Math.PI / 4), -rotationPower * Math.sin(5 * Math.PI / 4));
                 
             } else {
                 motorVector1 = new Vec2(0, 0);

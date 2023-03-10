@@ -27,11 +27,13 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
  * project.
  */
 public class Robot extends TimedRobot {
+  public static TimedRobot obj = null;
   private Command m_autonomousCommand;
 
   private RobotContainer m_robotContainer;
 
   private XboxController controller;
+  private XboxController controller2;
   private Swerve swerveDriveTrain = new Swerve();
 
   private Arm arm = new Arm();
@@ -40,16 +42,21 @@ public class Robot extends TimedRobot {
    * This function is run when the robot is first started up and should be used for any
    * initialization code.
    */
-
+  public Robot() {
+    super();
+    Robot.obj = this;
+  }
   @Override
   public void robotInit() {
     // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
     // autonomous chooser on the dashboard.
     m_robotContainer = new RobotContainer();
     controller = new XboxController(0);
-    sharedInit();
+    controller2 = new XboxController(1);
 
-    swerveDriveTrain.robotInit();
+    // sharedInit(); why was this here?? questions for next time
+
+    // swerveDriveTrain.robotInit();
 
     
   }
@@ -157,9 +164,9 @@ public class Robot extends TimedRobot {
     double ry = pose[4];
     double rz = pose[5];
 
-    arm.update(controller);
+    arm.update(controller, controller2);
     // swerveDriveTrain.update(controller);
-    
+    swerveDriveTrain.smartDashboard();
     SmartDashboard.putNumber("tx", tx);
     SmartDashboard.putNumber("ty", ty);
     SmartDashboard.putNumber("april rotation", rz);
