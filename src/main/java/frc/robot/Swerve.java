@@ -35,10 +35,10 @@ public class Swerve {
     private final double NEO_CONVERSION_FACTOR = -13.71;
     private final double NEO_DRIVE_CONVERSION_FACTOR = 7.36;
 
-    private final SparkMaxPIDController_ motorPIDController1 = new SparkMaxPIDController_(motor1, NEO_CONVERSION_FACTOR, 1, .3 - .5 - .25); // WHAT THE FUCK
-    private final SparkMaxPIDController_ motorPIDController2 = new SparkMaxPIDController_(motor2, NEO_CONVERSION_FACTOR, 1, .652 + .5 + .25);
-    private final SparkMaxPIDController_ motorPIDController3 = new SparkMaxPIDController_(motor3, NEO_CONVERSION_FACTOR, 1, .519 - .5 - .25);
-    private final SparkMaxPIDController_ motorPIDController4 = new SparkMaxPIDController_(motor4, NEO_CONVERSION_FACTOR, 1, .985 - .5 - .25);
+    private final SparkMaxPIDController_ motorPIDController1 = new SparkMaxPIDController_(motor1, NEO_CONVERSION_FACTOR, 1, .3 - .5); // WHAT THE FUCK
+    private final SparkMaxPIDController_ motorPIDController2 = new SparkMaxPIDController_(motor2, NEO_CONVERSION_FACTOR, 1, .652);
+    private final SparkMaxPIDController_ motorPIDController3 = new SparkMaxPIDController_(motor3, NEO_CONVERSION_FACTOR, 1, .519 - .5);
+    private final SparkMaxPIDController_ motorPIDController4 = new SparkMaxPIDController_(motor4, NEO_CONVERSION_FACTOR, 1, .985 - .5);
     
     private Vec2 targetVector = new Vec2();
 
@@ -137,16 +137,16 @@ public class Swerve {
 
         if(len >= 0.1 || Math.abs(rotationX) >= 0.1) {
             if (rotationX <= -.1) {
-                motorVector1 = new Vec2(-rotationPower * Math.cos(Math.PI / 4 - Math.PI / 2), -rotationPower * Math.sin(Math.PI / 4 - Math.PI / 2));
-                motorVector2 = new Vec2(rotationPower * Math.cos(3 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(3 * Math.PI / 4 - Math.PI / 2));
-                motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI / 2), -rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI / 2));
-                motorVector4 = new Vec2(rotationPower * Math.cos(-Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(-Math.PI / 4 - Math.PI / 2));
+                motorVector1 = new Vec2(-rotationPower * Math.cos(Math.PI / 4), -rotationPower * Math.sin(Math.PI / 4));
+                motorVector2 = new Vec2(rotationPower * Math.cos(3 * Math.PI / 4), rotationPower * Math.sin(3 * Math.PI / 4));
+                motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4), -rotationPower * Math.sin(-3 * Math.PI / 4));
+                motorVector4 = new Vec2(rotationPower * Math.cos(-Math.PI / 4), rotationPower * Math.sin(-Math.PI / 4));
                 
             } else if (rotationX >= .1) {
-                motorVector1 = new Vec2(rotationPower * Math.cos(-Math.PI / 4), rotationPower * Math.sin(-Math.PI / 4));
-                motorVector2 = new Vec2(-rotationPower * Math.cos(Math.PI / 4), -rotationPower * Math.sin(Math.PI / 4));
-                motorVector3 = new Vec2(rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI / 2));
-                motorVector4 = new Vec2(-rotationPower * Math.cos(5 * Math.PI / 4), -rotationPower * Math.sin(5 * Math.PI / 4));
+                motorVector1 = new Vec2(-rotationPower * Math.cos(-Math.PI / 4 - Math.PI / 2), -rotationPower * Math.sin(-Math.PI / 4 - Math.PI / 2));
+                motorVector2 = new Vec2(rotationPower * Math.cos(Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(Math.PI / 4 - Math.PI / 2));
+                motorVector3 = new Vec2(-rotationPower * Math.cos(-3 * Math.PI / 4 - Math.PI), -rotationPower * Math.sin(-3 * Math.PI / 4 - Math.PI));
+                motorVector4 = new Vec2(rotationPower * Math.cos(5 * Math.PI / 4 - Math.PI / 2), rotationPower * Math.sin(5 * Math.PI / 4 - Math.PI / 2));
                 
             } else {
                 motorVector1 = new Vec2(0, 0);

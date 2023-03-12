@@ -6,18 +6,17 @@ package frc.robot;
 
 import java.util.Set;
 
-import com.revrobotics.CANSparkMax;
-import com.revrobotics.CANSparkMaxLowLevel.MotorType;
-
+import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.DutyCycleEncoder;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.sequence.ArmHomeSequence;
+import frc.robot.sequence.DunkSequence;
+import frc.robot.sequence.Timer;
 
 
 /**
@@ -27,16 +26,20 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
  * project.
  */
 public class Robot extends TimedRobot {
-  public static TimedRobot obj = null;
+  public static Robot obj = null;
   private Command m_autonomousCommand;
 
   private RobotContainer m_robotContainer;
 
   private XboxController controller;
   private XboxController controller2;
-  private Swerve swerveDriveTrain = new Swerve();
 
+  private Swerve swerveDriveTrain = new Swerve();
   private Arm arm = new Arm();
+  private Ramp ramp = new Ramp();
+
+  public DunkSequence dunkSequence = new DunkSequence(arm, ramp);
+  public ArmHomeSequence homeSequence = new ArmHomeSequence(arm, ramp);
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -46,6 +49,11 @@ public class Robot extends TimedRobot {
     super();
     Robot.obj = this;
   }
+
+  public boolean areSequencesComplete() {
+    return dunkSequence.isComplete() && homeSequence.isComplete();
+  }
+
   @Override
   public void robotInit() {
     // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
@@ -53,6 +61,7 @@ public class Robot extends TimedRobot {
     m_robotContainer = new RobotContainer();
     controller = new XboxController(0);
     controller2 = new XboxController(1);
+    CameraServer.startAutomaticCapture();
 
     // sharedInit(); why was this here?? questions for next time
 
@@ -70,6 +79,7 @@ public class Robot extends TimedRobot {
     calibrateEncoders();
     swerveDriveTrain.sharedInit();
     arm.sharedInit();
+    ramp.sharedInit();
     
   }
 
@@ -163,13 +173,23 @@ public class Robot extends TimedRobot {
     double rx = pose[3];
     double ry = pose[4];
     double rz = pose[5];
+    
+    if(controller2.getYButtonPressed()) {
+        dunkSequence.run();
+    } else if(controller2.getAButton()) {
+        homeSequence.run();
+    }
 
+    swerveDriveTrain.update(controller);
     arm.update(controller, controller2);
-    // swerveDriveTrain.update(controller);
+    ramp.update(controller, controller2);
+
     swerveDriveTrain.smartDashboard();
+    ramp.smartDashboard();
     SmartDashboard.putNumber("tx", tx);
     SmartDashboard.putNumber("ty", ty);
     SmartDashboard.putNumber("april rotation", rz);
+    Timer.checkAllTimers(controller);
   }
 
   @Override
