@@ -10,8 +10,6 @@ import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.DutyCycleEncoder;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import frc.robot.sequence.ArmHomeSequence;
-import frc.robot.sequence.DunkSequence;
 
 public class Arm {
 
