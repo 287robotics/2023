@@ -9,7 +9,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Ramp {
     public final static double MIN_RAMP_LIMIT = -0.23;
-    public final static double MID_RAMP_LIMIT = -0.12;
+    public final static double MID_RAMP_LIMIT = -0.0915;
     public final static double MAX_RAMP_LIMIT = 0;
 
     private DigitalInput limitSwitch = new DigitalInput(0);
@@ -18,7 +18,7 @@ public class Ramp {
     private SparkMaxPIDController_ rampMotorController = new SparkMaxPIDController_(rampMotor, 255.2, 1.0);
     private double rampPosition = 0;
     private double rampTarget = 0;
-    private double rampSpeed = 0.0075;
+    private double rampSpeed = 0.0025;
     
     public Ramp() {
 

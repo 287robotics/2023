@@ -4,19 +4,19 @@
 
 package frc.robot;
 
-import java.util.Set;
-
 import edu.wpi.first.cameraserver.CameraServer;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.sequence.ArmHomeSequence;
 import frc.robot.sequence.DunkSequence;
+import frc.robot.sequence.FloorSequence;
+import frc.robot.sequence.MidDunkSequence;
 import frc.robot.sequence.Timer;
+import frc.robot.sequence.swerve.CubeSequence;
+import frc.robot.sequence.swerve.LeftConeSequence;
+import frc.robot.sequence.swerve.RightConeSequence;
 
 
 /**
@@ -35,11 +35,20 @@ public class Robot extends TimedRobot {
   private XboxController controller2;
 
   private Swerve swerveDriveTrain = new Swerve();
+
   private Arm arm = new Arm();
   private Ramp ramp = new Ramp();
 
   public DunkSequence dunkSequence = new DunkSequence(arm, ramp);
   public ArmHomeSequence homeSequence = new ArmHomeSequence(arm, ramp);
+  public MidDunkSequence midDunkSequence = new MidDunkSequence(arm, ramp);
+  public FloorSequence floorSequence = new FloorSequence(arm, ramp);
+  public RightConeSequence rightConeSequence = new RightConeSequence(swerveDriveTrain);
+  public CubeSequence cubeSequence = new CubeSequence(swerveDriveTrain);
+  public LeftConeSequence leftConeSequence = new LeftConeSequence(swerveDriveTrain);
+
+  private int lastAprilID;
+
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -51,7 +60,7 @@ public class Robot extends TimedRobot {
   }
 
   public boolean areSequencesComplete() {
-    return dunkSequence.isComplete() && homeSequence.isComplete();
+    return dunkSequence.isComplete() && homeSequence.isComplete() && midDunkSequence.isComplete() && leftConeSequence.isComplete() && cubeSequence.isComplete() && rightConeSequence.isComplete();
   }
 
   @Override
@@ -80,7 +89,7 @@ public class Robot extends TimedRobot {
     swerveDriveTrain.sharedInit();
     arm.sharedInit();
     ramp.sharedInit();
-    
+    Timer.clear();
   }
 
   /**
@@ -153,31 +162,34 @@ public class Robot extends TimedRobot {
     // beltController.setAngle(360);
   }
 
-  private double[] defaults = {0, 0, 0, 0, 0, 0};
+  
 
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
-    NetworkTable limelight = NetworkTableInstance.getDefault().getTable("limelight");
     
-    Set<String> strings = limelight.getKeys();
-    
-    for(String s : strings) {
-      SmartDashboard.putString(s, "yes");
-    }
-
-    double[] pose = limelight.getEntry("botpose").getDoubleArray(defaults);
-    double tx = pose[0];
-    double ty = pose[1];
-    double tz = pose[2];
-    double rx = pose[3];
-    double ry = pose[4];
-    double rz = pose[5];
-    
-    if(controller2.getYButtonPressed()) {
+    if(this.areSequencesComplete()) {
+      if(swerveDriveTrain.aprilID != -1 && swerveDriveTrain.aprilID != 4 && swerveDriveTrain.aprilID != 5) {
+        this.lastAprilID = swerveDriveTrain.aprilID;
+      }
+      if(controller2.getYButtonPressed()) {
         dunkSequence.run();
-    } else if(controller2.getAButton()) {
+      } else if(controller2.getXButton()) {
         homeSequence.run();
+      } else if (controller2.getBButton()) {
+        midDunkSequence.run();
+      } else if (controller2.getAButton()) {
+        floorSequence.run();
+      } else if(controller.getXButton()) {
+        leftConeSequence.setTargetID(lastAprilID);
+        leftConeSequence.run();
+      } else if(controller.getAButton()) {
+        cubeSequence.setTargetID(lastAprilID);
+        cubeSequence.run();
+      } else if(controller.getBButton()) {
+        rightConeSequence.setTargetID(lastAprilID);
+        rightConeSequence.run();
+      }
     }
 
     swerveDriveTrain.update(controller);
@@ -186,9 +198,7 @@ public class Robot extends TimedRobot {
 
     swerveDriveTrain.smartDashboard();
     ramp.smartDashboard();
-    SmartDashboard.putNumber("tx", tx);
-    SmartDashboard.putNumber("ty", ty);
-    SmartDashboard.putNumber("april rotation", rz);
+
     Timer.checkAllTimers(controller);
   }
 

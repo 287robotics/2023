@@ -1,11 +1,14 @@
 package frc.robot;
 
+import java.util.Set;
+
 import com.ctre.phoenix.sensors.CANCoder;
-import com.ctre.phoenix.sensors.Pigeon2;
 import com.ctre.phoenix.sensors.WPI_PigeonIMU;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
@@ -35,9 +38,9 @@ public class Swerve {
     private final double NEO_DRIVE_CONVERSION_FACTOR = 7.36;
 
     private final SparkMaxPIDController_ motorPIDController1 = new SparkMaxPIDController_(motor1, NEO_CONVERSION_FACTOR, 1, .3 - .5); // WHAT THE FUCK
-    private final SparkMaxPIDController_ motorPIDController2 = new SparkMaxPIDController_(motor2, NEO_CONVERSION_FACTOR, 1, .652);
-    private final SparkMaxPIDController_ motorPIDController3 = new SparkMaxPIDController_(motor3, NEO_CONVERSION_FACTOR, 1, .519 - .5);
-    private final SparkMaxPIDController_ motorPIDController4 = new SparkMaxPIDController_(motor4, NEO_CONVERSION_FACTOR, 1, .985 - .5);
+    private final SparkMaxPIDController_ motorPIDController2 = new SparkMaxPIDController_(motor2, NEO_CONVERSION_FACTOR, 1, .1413 + .5);
+    private final SparkMaxPIDController_ motorPIDController3 = new SparkMaxPIDController_(motor3, NEO_CONVERSION_FACTOR, 1, .0231);
+    private final SparkMaxPIDController_ motorPIDController4 = new SparkMaxPIDController_(motor4, NEO_CONVERSION_FACTOR, 1, .9772 - .5);
     
     private Vec2 targetVector = new Vec2();
 
@@ -49,6 +52,7 @@ public class Swerve {
     private boolean gyroMode = true;
     private boolean jBack = false;
     private double startPigeon = 0;
+    private double pigeonAccelAngleOffset = 0;
 
     private boolean homing;
     private double rotationSpeed = 0.05;
@@ -56,23 +60,9 @@ public class Swerve {
     private double rotationTarget;
     private double rotationOutput;
 
-    private short[] accel = new short[3];
+    private double aprilAngleOffset;
 
-    private short[] offsets = new short[3];
-
-    private double ax = 0;
-    private double ay = 0;
-    private double az = 0;
-
-    private double vx = 0;
-    private double vy = 0;
-    private double vz = 0;
-
-    private double px = 0;
-    private double py = 0;
-    private double pz = 0;
-
-    private double kP = 0.7;
+    private double kP = 1.0;
     private double kI = 0.0001;
     private double kD = 0;
     
@@ -83,6 +73,15 @@ public class Swerve {
 
     private long lastTime = 0;
     private long currentTime = 0;
+
+    private double botX = 0;
+    private double botY = 0;
+    private double targetBotX = 0;
+    private double targetBotY = 0;
+    private boolean homingBot = false;
+    public int aprilID = -1;
+
+    private short[] botAccel = new short[3];
 
     public Swerve() {
         lastTime = System.currentTimeMillis();
@@ -95,12 +94,83 @@ public class Swerve {
     }
 
     public void sharedInit() {
+        this.indWheelController1 = new IndWheelController();
+        this.indWheelController2 = new IndWheelController();
+        this.indWheelController3 = new IndWheelController();
+        this.indWheelController4 = new IndWheelController();
+
         startPigeon = pigeon.getYaw() * Math.PI / 180;
+        pigeonAccelAngleOffset = pigeon.getYaw();
+
         this.rotation = startPigeon;
         this.rotationTarget = startPigeon;
-        this.ax = 0;
-        this.ay = 0;
-        this.az = 0;
+        this.i = 0;
+        this.p = 0;
+        this.d = 0;
+
+        NetworkTable limelight = NetworkTableInstance.getDefault().getTable("limelight");
+    
+        Set<String> strings = limelight.getKeys();
+        
+        for(String s : strings) {
+            SmartDashboard.putString(s, "yes");
+        }
+
+        double[] pose = limelight.getEntry("botpose").getDoubleArray(defaults);
+        double tx = pose[0];
+        double ty = pose[1];
+        this.botX = tx;
+        this.botY = ty;
+        this.setBotTarget(6.27, -3.60);
+    }
+
+    public void setHomingBotEnabled(boolean enabled) {
+        this.homingBot = enabled;
+    }
+
+    public void calibrateBotPosition() {
+        NetworkTable limelight = NetworkTableInstance.getDefault().getTable("limelight");
+    
+        Set<String> strings = limelight.getKeys();
+        
+        for(String s : strings) {
+          SmartDashboard.putString(s, "yes");
+        }
+    
+        double[] pose = limelight.getEntry("botpose").getDoubleArray(defaults);
+        pigeon.getBiasedAccelerometer(botAccel);
+        // pigeon.getAccel
+        double tx = pose[0];
+        double ty = pose[1];
+        double rz = pose[5];
+
+        SmartDashboard.putNumber("tx2", tx);
+        SmartDashboard.putNumber("ty2", ty);
+        SmartDashboard.putNumber("rz", rz);
+        
+        if(tx != 0 && ty != 0) {
+          this.botX = tx;
+          this.botY = ty;
+          aprilAngleOffset = (pigeon.getYaw() * Math.PI / 180) - startPigeon - (rz * Math.PI / 180);
+        }
+    }
+
+    public void setBotTarget(double x, double y) {
+        this.targetBotX = x;
+        this.targetBotY = y;
+    }
+
+    //in radians from startPigeon
+    public void setRotationTarget(double angle) {
+        this.rotationTarget = angle + startPigeon;
+    }
+
+    public double distanceSquaredFromBotTarget() {
+        return (botY - targetBotY) * (botY - targetBotY) + (botX - targetBotX) * (botX - targetBotX);
+    }
+
+    public double distanceFromRotationTarget() {
+        return rotationTarget - pigeon.getYaw() * Math.PI / 180;
     }
 
     public void calibrateEncoders() {
@@ -119,31 +189,114 @@ public class Swerve {
         SmartDashboard.putNumber("relMotorEncoder2", motorPIDController2.motor.getEncoder().getPosition());
         SmartDashboard.putNumber("relMotorEncoder3", motorPIDController3.motor.getEncoder().getPosition());
         SmartDashboard.putNumber("relMotorEncoder4", motorPIDController4.motor.getEncoder().getPosition());
+        SmartDashboard.putNumber("botX", botX);
+        SmartDashboard.putNumber("botY", botY);
+        SmartDashboard.putNumber("botAccelX", botAccel[0]);
+        SmartDashboard.putNumber("botAccelY", botAccel[1]);
+        SmartDashboard.putNumber("botAccelZ", botAccel[2]);
+        SmartDashboard.putNumber("gyroTarget", rotationTarget);
+        SmartDashboard.putNumber("rotationOutput", rotationOutput);
     }
 
     public void calibrateAccelerometer() {
-        for(int i = 0; i < 3; i++) {
-            this.offsets[i] = (short) -this.accel[i];
-        }
+        
     }
 
+    private double wheelRot = 0;
+
+    //helpful for when we need to lube gears in the drivetrain
+    public void updateLubeGears(XboxController controller) {
+        if(controller.getAButton()) {
+            driveMotor1.set(0.03);
+            driveMotor2.set(0.03);
+            driveMotor3.set(0.03);
+            driveMotor4.set(0.03);
+        } else {
+            driveMotor1.set(0.0);
+            driveMotor2.set(0.0);
+            driveMotor3.set(0.0);
+            driveMotor4.set(0.0);
+        }
+        if(controller.getBButton()) {
+            wheelRot += 0.001;
+        }
+        motorPIDController1.setPosition(wheelRot);
+        motorPIDController2.setPosition(wheelRot);
+        motorPIDController3.setPosition(wheelRot);
+        motorPIDController4.setPosition(wheelRot);
+    }
+
+    private double[] defaults = {0, 0, 0, 0, 0, 0};
+
     public void update(XboxController controller) {
+        NetworkTable limelight = NetworkTableInstance.getDefault().getTable("limelight");
+    
+        Set<String> strings = limelight.getKeys();
+        
+        for(String s : strings) {
+          SmartDashboard.putString(s, "yes");
+        }
+    
+        double[] pose = limelight.getEntry("botpose").getDoubleArray(defaults);
+        aprilID = (int) limelight.getEntry("tid").getDouble(0);
+        SmartDashboard.putNumber("Apriltag ID", aprilID);
+        pigeon.getBiasedAccelerometer(botAccel);
+        // pigeon.getAccel
+        double tx = pose[0];
+        double ty = pose[1];
+        double tz = pose[2];
+        double rx = pose[3];
+        double ry = pose[4];
+        double rz = pose[5];
+
+        SmartDashboard.putNumber("tx2", tx);
+        SmartDashboard.putNumber("ty2", ty);
+        SmartDashboard.putNumber("rz", rz);
+        
+        if(tx != 0 && ty != 0 && Math.abs(botX - tx) < 1 && Math.abs(botY - ty) < 1) {
+          this.botX = this.botX * 0.2 + tx * 0.8;
+          this.botY = this.botY * 0.2 + ty * 0.8;
+          aprilAngleOffset = (pigeon.getYaw() * Math.PI / 180) - startPigeon - (rz * Math.PI / 180);
+        }
+
+        if(controller.getYButtonPressed()) {
+            this.calibrateBotPosition();
+        }
+
+        SmartDashboard.putNumber("aprilangleoffset", aprilAngleOffset);
+
         double delta = (currentTime - lastTime) * 0.001;
         double x = controller.getRightX();
         double y = controller.getRightY();
 
-        homing = controller.getStartButton();
-
-        double leftX = controller.getLeftX();
-
-        if(!homing) {
-            rotationTarget += rotationSpeed * leftX;
-        } else {
-            rotationTarget = startPigeon;
+        if(controller.getBackButton() && homingBot && tx != 0 && ty != 0) {
+            double angle = Math.atan2(targetBotX - botX, targetBotY - botY) - aprilAngleOffset;
+            double lenSquared = (botY - targetBotY) * (botY - targetBotY) + (botX - targetBotX) * (botX - targetBotX);
+            if(lenSquared > 0.04) {
+                y = -Math.sin(angle) * 1.0;
+                x = -Math.cos(angle) * 1.0;
+            } else if(lenSquared > 0.0225) {
+                y = -Math.sin(angle) * 0.6;
+                x = -Math.cos(angle) * 0.6;
+            } else if(lenSquared > 0.0025) {
+                y = -Math.sin(angle) * 0.6;
+                x = -Math.cos(angle) * 0.6;
+            } else {
+                y = 0;
+                x = 0;
+            }
         }
 
-        if(controller.getBackButtonPressed()) {
-            this.calibrateAccelerometer();
+        homing = controller.getStartButton();
+
+        double leftX = -controller.getLeftX();
+
+        if(!homing) {
+            if(Math.abs(leftX) > 0.1) {
+                rotationTarget += rotationSpeed * leftX;
+            }
+        } else {
+            rotationTarget = startPigeon;
         }
 
         if (rotation < rotationTarget) {
@@ -160,21 +313,13 @@ public class Swerve {
 
         SmartDashboard.putNumber("rotationX", rotation);
         SmartDashboard.putNumber("gyroRot", pigeon.getYaw());
-
-        pigeon.getBiasedAccelerometer(accel);
-        ax = (accel[0] + offsets[0]) * 9.8 / 16384.0;
-        ay = (accel[1] + offsets[1]) * 9.8 / 16384.0;
-        az = (accel[2] + offsets[2]) * 9.8 / 16384.0;
-
-        SmartDashboard.putNumber("posX", ax);
-        SmartDashboard.putNumber("posY", ay);
-        SmartDashboard.putNumber("posZ", az);
+        SmartDashboard.putNumber("startPigeon", startPigeon);
 
         double angle = Math.atan2(y, x) + (gyroMode ? (pigeon.getYaw() * Math.PI / 180 - startPigeon) : 0);
 
         double len = Math.sqrt(x * x + y * y);
-        double controllerPower = len * len;//controller.getRightTriggerAxis();
-        double rotationPower = Math.abs(rotationOutput); //needs beeg testing
+        double controllerPower = len * len * 0.2;//controller.getRightTriggerAxis();
+        double rotationPower = Math.abs(rotationOutput) * 0.5;
 
         Vec2 motor1Vec = new Vec2(0, 0);
         Vec2 motor2Vec = new Vec2(0, 0);
@@ -221,10 +366,10 @@ public class Swerve {
             indWheelController4.updateInput(motor4Vec);
         }
 
-        driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign / 2);
-        driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign / 2);
-        driveMotor3.set(-motor3Vec.getLength() * indWheelController3.wheelSign / 2);
-        driveMotor4.set(-motor4Vec.getLength() * indWheelController4.wheelSign / 2);
+        driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
+        driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);
+        driveMotor3.set(-motor3Vec.getLength() * indWheelController3.wheelSign);
+        driveMotor4.set(-motor4Vec.getLength() * indWheelController4.wheelSign);
 
         indWheelController1.update();
         indWheelController2.update();

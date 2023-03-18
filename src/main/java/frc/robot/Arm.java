@@ -38,10 +38,13 @@ public class Arm {
     private double wristSpeed = .004;
 
     private double grabberPosition = 0;
+    private double grabberTarget = 0;
+    private double grabberSpeed = 200;
+
     private double previousGrabberPosition = 0;
     private boolean opened = false;
     private int grabberDirection = 1;
-    private double grabberLimit = -6350;
+    public double grabberLimit = -6000;
 
     private double accum = 0;
     
@@ -56,12 +59,13 @@ public class Arm {
         armMotor2.follow(armMotor, true);
         armPID.disableMotor();
         wristPID.disableMotor();
-
+        
         grabberMotor = new TalonFX(9);
-
+        opened = false;
         grabberPosition = -10000;
-        grabberMotor.setSelectedSensorPosition(-10000);
-        grabberMotor.set(ControlMode.Position, -10000);
+        grabberTarget = grabberPosition;
+        grabberMotor.setSelectedSensorPosition(grabberPosition);
+        grabberMotor.set(ControlMode.Position, grabberPosition);
 
         double e = armEncoder.get();
 
@@ -101,7 +105,6 @@ public class Arm {
         armPID.enableMotor(); //this clearly doesnt work
         wristPID.enableMotor();
 
-        opened = false;
     }
 
     private double lastE = 0;
@@ -137,6 +140,18 @@ public class Arm {
     public double getArmTarget() {
         return armTarget;
     }
+
+    public double getGrabberTarget() {
+        return grabberTarget;
+    }
+
+    public double getGrabberPosition() {
+        return grabberPosition;
+    }
+
+    public void setGrabberTarget(double grabberTar) {
+        grabberTarget = grabberTar;
+    }
     public void update(XboxController controller, XboxController controller2) {
         if(Robot.obj.areSequencesComplete()) {
             double ry = controller2.getRightY();
@@ -155,13 +170,22 @@ public class Arm {
             }
         
             if (Math.abs(controller2.getRightTriggerAxis()) >= .05) {
-                grabberPosition += controller2.getRightTriggerAxis() * 200;
+                if (opened) {
+                    grabberTarget = Math.min(0, grabberTarget + controller2.getRightTriggerAxis() * 200);
+                } else {
+                    grabberPosition += controller2.getRightTriggerAxis() * 200;
+                }
+
+
             }
 
             if (Math.abs(controller2.getLeftTriggerAxis()) >= .05) {
-                grabberPosition -= controller2.getLeftTriggerAxis() * 200;
+                if (opened) {
+                    grabberTarget = Math.max(grabberLimit, grabberTarget - controller2.getLeftTriggerAxis() * 200);
+                } else {
+                    grabberPosition -= controller2.getLeftTriggerAxis() * 200;
+                }
             }
-
         }
         double e = armEncoder.get();
         double ew = wristEncoder.get();
@@ -183,9 +207,11 @@ public class Arm {
         if(armPosition < armTarget && e < ARM_MAX) {
             armPosition = Math.min(ARM_MAX, armPosition + armSpeed);
         }
+
         if(armPosition > armTarget && e > ARM_MIN) {
             armPosition = Math.max(ARM_MIN, armPosition - armSpeed);
         }
+
         armPID.setPosition(armPosition);
 
         if(wristPosition < wristTarget && ew < WRIST_MAX) {
@@ -193,6 +219,18 @@ public class Arm {
         }
         if(wristPosition > wristTarget && ew > WRIST_MIN) {
             wristPosition = Math.max(WRIST_MIN, wristPosition - wristSpeed);
+        }
+
+        if (grabberPosition < grabberTarget && opened) {
+            grabberPosition = Math.min(0, grabberPosition + grabberSpeed);
+        }
+
+        if (grabberPosition > grabberTarget && opened) {
+            grabberPosition = Math.max(grabberLimit, grabberPosition - grabberSpeed);
+        }
+
+        if (Math.abs(grabberPosition - grabberTarget) < 250 && opened) {
+            grabberPosition = grabberTarget;
         }
 
         wristPID.setPosition(wristPosition);
@@ -207,6 +245,8 @@ public class Arm {
         SmartDashboard.putNumber("armPosition", armPosition);
         SmartDashboard.putNumber("armTarget", armTarget);
 
+        SmartDashboard.putNumber("grabberPosition", grabberPosition);
+        SmartDashboard.putNumber("grabberTarget", grabberTarget);
         SmartDashboard.putNumber("Accumulator", accum);
 
         if (grabberPosition == previousGrabberPosition && limitSwitch.get()) {
@@ -224,6 +264,7 @@ public class Arm {
         if(!limitSwitch.get() && jLimit) {
             grabberMotor.setSelectedSensorPosition(125);
             grabberPosition = 0;
+            grabberTarget = 0;
             grabberMotor.set(TalonFXControlMode.Position, 0);
             opened = true;
         }
