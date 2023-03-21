@@ -5,6 +5,7 @@
 package frc.robot;
 
 import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.cscore.UsbCamera;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -49,6 +50,8 @@ public class Robot extends TimedRobot {
 
   private int lastAprilID;
 
+  private UsbCamera camera1 = null;
+  private UsbCamera camera2 = null;
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -70,7 +73,9 @@ public class Robot extends TimedRobot {
     m_robotContainer = new RobotContainer();
     controller = new XboxController(0);
     controller2 = new XboxController(1);
-    CameraServer.startAutomaticCapture();
+    
+    camera1 = CameraServer.startAutomaticCapture(0);
+    camera2 = CameraServer.startAutomaticCapture(1);
 
     // sharedInit(); why was this here?? questions for next time
 
@@ -172,24 +177,32 @@ public class Robot extends TimedRobot {
       if(swerveDriveTrain.aprilID != -1 && swerveDriveTrain.aprilID != 4 && swerveDriveTrain.aprilID != 5) {
         this.lastAprilID = swerveDriveTrain.aprilID;
       }
-      if(controller2.getYButtonPressed()) {
-        dunkSequence.run();
-      } else if(controller2.getXButton()) {
-        homeSequence.run();
-      } else if (controller2.getBButton()) {
-        midDunkSequence.run();
-      } else if (controller2.getAButton()) {
-        floorSequence.run();
-      } else if(controller.getXButton()) {
-        leftConeSequence.setTargetID(lastAprilID);
-        leftConeSequence.run();
-      } else if(controller.getAButton()) {
-        cubeSequence.setTargetID(lastAprilID);
-        cubeSequence.run();
-      } else if(controller.getBButton()) {
-        rightConeSequence.setTargetID(lastAprilID);
-        rightConeSequence.run();
+
+      boolean cubeMode = controller2.getLeftBumper();
+
+      if (cubeMode) {
+
+      } else {
+        if(controller2.getYButtonPressed()) {
+          dunkSequence.run();
+        } else if(controller2.getXButton()) {
+          midDunkSequence.run();
+        } else if (controller2.getBButton()) {
+          homeSequence.run();
+        } else if (controller2.getAButton()) {
+          floorSequence.run();
+        } else if(controller.getXButton()) {
+          leftConeSequence.setTargetID(lastAprilID);
+          leftConeSequence.run();
+        } else if(controller.getAButton()) {
+          cubeSequence.setTargetID(lastAprilID);
+          cubeSequence.run();
+        } else if(controller.getBButton()) {
+          rightConeSequence.setTargetID(lastAprilID);
+          rightConeSequence.run();
+        }
       }
+      
     }
 
     swerveDriveTrain.update(controller);

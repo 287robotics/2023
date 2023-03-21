@@ -9,7 +9,10 @@ public class IndWheelController {
     public double normalizedPosition = 0;
     public double angleDiff = 0;
 
-    public IndWheelController() {}
+    public IndWheelController() {
+      wheelDirTarget = Math.PI / 2;
+      wheelPosition = Math.PI / 2;
+    }
 
     private static double mod(double a, double n) {
         return a - Math.floor(a / n) * n;

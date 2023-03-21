@@ -13,6 +13,7 @@ public class CubeSequence extends Sequence {
 
     public CubeSequence(Swerve swerve) {
         setSequence(
+            Timer.create(0, () -> swerve.setRotationTarget(0)),
             Timer.create(0, () -> {swerve.calibrateBotPosition(); swerve.setBotTarget(cubeX[currentTargetID - 1], cubeY[currentTargetID - 1]); swerve.setHomingBotEnabled(true);}, () -> swerve.distanceFromRotationTarget() < 0.1),
             Timer.create(0, () -> {}, () -> swerve.distanceSquaredFromBotTarget() < 0.0025),
             Timer.create(1000, () -> swerve.setHomingBotEnabled(false)));

@@ -44,7 +44,7 @@ public class Arm {
     private double previousGrabberPosition = 0;
     private boolean opened = false;
     private int grabberDirection = 1;
-    public double grabberLimit = -6000;
+    public double grabberLimit = -6250;
 
     private double accum = 0;
     
@@ -156,6 +156,18 @@ public class Arm {
         if(Robot.obj.areSequencesComplete()) {
             double ry = controller2.getRightY();
             double ly = controller2.getLeftY();
+            
+            if (controller2.getRightStickButton()) {
+                armSpeed = .0005;
+            } else {
+                armSpeed = .002;
+            }
+
+            if (controller2.getLeftStickButton()) {
+                wristSpeed = .0005;
+            } else {
+                wristSpeed = .002;
+            }
 
             if(ry > 0.1) {
                 armTarget = Math.min(ARM_MAX, armTarget + ry * armSpeed);
@@ -169,21 +181,21 @@ public class Arm {
                 wristTarget = Math.max(WRIST_MIN, wristTarget - ly * wristSpeed);
             }
         
-            if (Math.abs(controller2.getRightTriggerAxis()) >= .05) {
+            if (Math.abs(controller2.getLeftTriggerAxis()) >= .05) {
                 if (opened) {
-                    grabberTarget = Math.min(0, grabberTarget + controller2.getRightTriggerAxis() * 200);
+                    grabberTarget = Math.min(0, grabberTarget + controller2.getLeftTriggerAxis() * 200);
                 } else {
-                    grabberPosition += controller2.getRightTriggerAxis() * 200;
+                    grabberPosition += controller2.getLeftTriggerAxis() * 200;
                 }
 
 
             }
 
-            if (Math.abs(controller2.getLeftTriggerAxis()) >= .05) {
+            if (Math.abs(controller2.getRightTriggerAxis()) >= .05) {
                 if (opened) {
-                    grabberTarget = Math.max(grabberLimit, grabberTarget - controller2.getLeftTriggerAxis() * 200);
+                    grabberTarget = Math.max(grabberLimit, grabberTarget - controller2.getRightTriggerAxis() * 200);
                 } else {
-                    grabberPosition -= controller2.getLeftTriggerAxis() * 200;
+                    grabberPosition -= controller2.getRightTriggerAxis() * 200;
                 }
             }
         }
