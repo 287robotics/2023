@@ -9,6 +9,7 @@ import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
@@ -53,6 +54,7 @@ public class Swerve {
     private boolean jBack = false;
     private double startPigeon = 0;
     private double pigeonAccelAngleOffset = 0;
+    public boolean balancing = false;
 
     private boolean homing;
     private double rotationSpeed = 0.05;
@@ -62,8 +64,8 @@ public class Swerve {
 
     private double aprilAngleOffset;
 
-    private double kP = 1.0;
-    private double kI = 0.0001;
+    private double kP = 1.8;
+    private double kI = 0.0004;
     private double kD = 0;
     
     private double p = 0;
@@ -81,6 +83,9 @@ public class Swerve {
     private boolean homingBot = false;
     public int aprilID = -1;
     private double botSpeedRamp = 0;
+    
+    private boolean stopOnDeviation = false;
+    private double deviationStart = 0;
 
     private double botDriveAngle = 0;
 
@@ -94,6 +99,8 @@ public class Swerve {
     private double distToReckon = 0;
     private double angleToReckon = 0;
     private boolean reckoning = false;
+
+    public boolean canRotate = false;
 
     private int[] lastIDs;
 
@@ -114,7 +121,10 @@ public class Swerve {
         this.indWheelController2 = new IndWheelController();
         this.indWheelController3 = new IndWheelController();
         this.indWheelController4 = new IndWheelController();
-
+        
+        this.stopOnDeviation = false;
+        balancing = false;
+        reckoning = false;
         startPigeon = pigeon.getYaw() * Math.PI / 180;
         pigeonAccelAngleOffset = pigeon.getYaw();
 
@@ -149,6 +159,7 @@ public class Swerve {
         drive3Last = drive3;
         drive4Last = drive4;
         encoderDist = 0;
+        balancing = false;
     }
 
     public void setHomingBotEnabled(boolean enabled) {
@@ -193,6 +204,10 @@ public class Swerve {
         this.encoderDist = 0;
     }
 
+    public void teleopInit() {
+        startPigeon += Math.PI;
+        canRotate = true;
+    }
     public void setReckoningEnabled(boolean enabled) {
         if(enabled) {
             this.encoderDist = 0;
@@ -200,14 +215,34 @@ public class Swerve {
         this.reckoning = enabled;
     }
 
+    public void setStopOnDeviation(boolean val) {
+        stopOnDeviation = val;
+    }
+
+    public void setBalancing(boolean val) {
+        balancing = val;
+    }
+    public void setStopOnDeviationValue(double val) {
+        deviationStart = val;
+    }
+
     public void setBotTarget(double x, double y) {
         this.targetBotX = x;
         this.targetBotY = y;
     }
 
+    public double mod(double a, double n) {
+        return a - Math.floor(a / n) * n;
+    }
+
     //in radians from startPigeon
     public void setRotationTarget(double angle) {
-        this.rotationTarget = angle + startPigeon;
+        double nt = Math.IEEEremainder(angle + startPigeon, Math.PI * 2);
+        double np = Math.IEEEremainder(rotationTarget, Math.PI * 2);
+        System.out.println(rotationTarget / Math.PI * 180 + " " + np / Math.PI * 180);
+        double a = nt - np;
+        a = mod(a + Math.PI, Math.PI * 2) - Math.PI;
+        rotationTarget += a;
     }
 
     public double distanceSquaredFromBotTarget() {
@@ -241,6 +276,9 @@ public class Swerve {
         SmartDashboard.putNumber("botAccelZ", botAccel[2]);
         SmartDashboard.putNumber("gyroTarget", rotationTarget);
         SmartDashboard.putNumber("rotationOutput", rotationOutput);
+        SmartDashboard.putNumber("rotationTarget", rotationTarget);
+        SmartDashboard.putNumber("botPitch", pigeon.getPitch());
+        SmartDashboard.putNumber("botRoll", pigeon.getRoll());
     }
 
     public void calibrateAccelerometer() {
@@ -272,6 +310,13 @@ public class Swerve {
     }
 
     private double[] defaults = {0, 0, 0, 0, 0, 0};
+
+    public WPI_PigeonIMU getPigeon() {
+        return pigeon;
+    }
+    public boolean getReckoning() {
+        return reckoning;
+    }
 
     public void update(XboxController controller) {
         NetworkTable limelight = NetworkTableInstance.getDefault().getTable("limelight");
@@ -340,29 +385,45 @@ public class Swerve {
             len = 0;
         }
 
-        if(controller.getBackButton() && homingBot && tx != 0 && ty != 0) {
+        SmartDashboard.putNumber("rotations", (int) (pigeon.getYaw() * Math.PI / 180 / (Math.PI * 2)));
+
+        if(balancing) {
+            double s = Robot.obj.autonomous ? -1.0 : 1.0;
+
+            if(Math.abs(pigeon.getRoll()) > 12) {
+                if(pigeon.getRoll() > 0) {
+                    System.out.println("for");
+                    y = .3 * s;
+                } else {
+                    System.out.println("bac");
+                    y = -.3 * s;
+                }
+            }
+        }
+
+        if(homingBot && tx != 0 && ty != 0) {
             double angle = Math.atan2(targetBotX - botX, targetBotY - botY) - aprilAngleOffset;
             double lenSquared = (botY - targetBotY) * (botY - targetBotY) + (botX - targetBotX) * (botX - targetBotX);
             if(lenSquared > 0.04) {
-                y = -Math.sin(angle) * 0.6;
-                x = -Math.cos(angle) * 0.6;
+                y = -Math.sin(angle) * 0.5;
+                x = -Math.cos(angle) * 0.5;
             } else if(lenSquared > 0.0225) {
                 y = -Math.sin(angle) * 0.3;
                 x = -Math.cos(angle) * 0.3;
             } else if(lenSquared > 0.0025) {
-                y = -Math.sin(angle) * 0.3;
-                x = -Math.cos(angle) * 0.3;
+                y = -Math.sin(angle) * 0.2;
+                x = -Math.cos(angle) * 0.2;
             } else {
                 y = 0;
                 x = 0;
             }
-        } else if(controller.getBackButton() && reckoning) {
+        } else if(reckoning) {
             if(encoderDist >= distToReckon) {
                 reckoning = false;
             } else {
-                double angle = angleToReckon - aprilAngleOffset;
-                y = -Math.sin(angle) * 0.5;
-                x = -Math.cos(angle) * 0.5;
+                double angle = angleToReckon;
+                y = -Math.sin(angle) * Preferences.getDouble("reckoningSpeed", .7);
+                x = -Math.cos(angle) * Preferences.getDouble("reckoningSpeed", .7);
             }
         }
 
@@ -370,14 +431,15 @@ public class Swerve {
 
         homing = controller.getStartButton();
 
-        double leftX = -controller.getLeftX();
+        double leftX = -controller.getLeftX() * (controller.getLeftBumper() ? .2 : 1);
 
         if(!homing) {
             if(Math.abs(leftX) > 0.1) {
                 rotationTarget += rotationSpeed * leftX;
             }
         } else {
-            rotationTarget = startPigeon;
+            this.setRotationTarget(0);
+            // rotationTarget = startPigeon;
         }
 
         if (rotation < rotationTarget) {
@@ -396,10 +458,10 @@ public class Swerve {
         SmartDashboard.putNumber("gyroRot", pigeon.getYaw());
         SmartDashboard.putNumber("startPigeon", startPigeon);
 
-        double controllerPower = 0.75 * (1.2 * Math.pow(1.043, 100 * len) - 1.2 + .2 * (100 * len)) / 100;//controller.getRightTriggerAxis();
+        double controllerPower = 1.0 * (1.2 * Math.pow(1.043, 100 * len) - 1.2 + .2 * (100 * len)) / 100;//controller.getRightTriggerAxis();
 
-        if(controller.getRightStickButton()) {
-            controllerPower *= 0.3;
+        if (controller.getLeftBumper()) {
+            controllerPower *= .33;
         }
 
         if(controllerPower < botSpeedRamp && !homingBot && !reckoning) {
@@ -409,6 +471,9 @@ public class Swerve {
         }
 
         double rotationPower = Math.abs(rotationOutput) * 0.5;
+        if(!canRotate) {
+            rotationPower = 0;
+        }
 
         Vec2 motor1Vec = new Vec2(0, 0);
         Vec2 motor2Vec = new Vec2(0, 0);
@@ -418,6 +483,8 @@ public class Swerve {
         if(controllerPower > 0.02) {
             botDriveAngle = Math.atan2(y, x) + (gyroMode ? (pigeon.getYaw() * Math.PI / 180 - startPigeon) : 0);
         }
+
+        
 
         if(botSpeedRamp >= 0.02 || Math.abs(rotationOutput) >= 0.1) {
             if (rotationOutput <= -.1) {
@@ -458,6 +525,18 @@ public class Swerve {
             indWheelController3.updateInput(motor3Vec);
             indWheelController4.updateInput(motor4Vec);
         }
+        
+        if (stopOnDeviation) {
+            if (Math.abs(pigeon.getRoll() - deviationStart) > 3) {
+                motor1Vec = new Vec2(0, 0);
+                motor2Vec = new Vec2(0, 0);
+                motor3Vec = new Vec2(0, 0);
+                motor4Vec = new Vec2(0, 0);
+
+                reckoning = false;
+            }
+        }
+
 
         driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
         driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);

@@ -28,6 +28,10 @@ public class Ramp {
         return rampMotorController.getPosition() > -0.005;
     }
 
+    public void setSpeed(double speed) {
+        rampSpeed = speed;
+    }
+
     public void setDown() {
         rampTarget = MAX_RAMP_LIMIT;
     }
@@ -40,11 +44,20 @@ public class Ramp {
         rampTarget = MIN_RAMP_LIMIT;
     }
 
-    public void sharedInit() {
+    public void oneTimeInit() {
         rampPosition = MIN_RAMP_LIMIT;
         rampTarget = MIN_RAMP_LIMIT;
         rampMotorController.setReferencePosition(rampPosition);
         rampMotorController.setPosition(rampPosition);
+        jLimit = true;
+    }
+
+    public void sharedInit() {
+        oneTimeInit();
+    }
+
+    public void autonomousInit() {
+        // oneTimeInit();
     }
 
     public void smartDashboard() {
@@ -52,7 +65,6 @@ public class Ramp {
         SmartDashboard.putNumber("Ramp Encoder Position", rampMotorController.getPosition());
         SmartDashboard.putNumber("Ramp Target", rampTarget);
         SmartDashboard.putNumber("Ramp Position", rampPosition);
-
     }
 
     public void update(XboxController controller, XboxController controller2) {
@@ -72,14 +84,17 @@ public class Ramp {
             rampPosition = rampTarget;
         }
 
-        if (!limitSwitch.get() && jLimit) {
+        boolean limit = limitSwitch.get();
+
+        if (!limit && jLimit) {
             rampPosition = 0;
             rampTarget = 0;
             rampMotorController.setReferencePosition(rampPosition);
             rampMotorController.setPosition(rampPosition);
+            rampSpeed = .003;
         }
 
-        jLimit = limitSwitch.get();
+        jLimit = limit;
 
         rampMotorController.setPosition(rampPosition);
     }

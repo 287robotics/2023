@@ -1,15 +1,44 @@
 package frc.robot.sequence;
 
+import edu.wpi.first.wpilibj.Preferences;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.Arm;
+import frc.robot.Ramp;
+import frc.robot.Swerve;
+import frc.robot.sequence.cone.DunkSequence;
+
 public class AutoSequence extends Sequence {
     
-    public AutoSequence(Swerve swerve, Arm arm, Ramp ramp) {
-        DunkSequence dunk = new DunkSequence(arm, ramp);
-        ArmHomeSequence home = new ArmHomeSequence(arm, ramp);
+    public AutoSequence(Swerve swerve, Arm arm, Ramp ramp) {        
         setSequence(
-            Timer.create(0, () -> dunk.run()),
-            Timer.create(0, () -> home.run(), () -> dunk.isComplete())
+            Timer.create(0, () -> swerve.balancing = true),
+            //dunk
+            Timer.create(0, () -> {arm.setWristSpeed(.006); arm.setArmSpeed(0.007);}),
+            Timer.create(0, () -> arm.setWristPosition(0.2)),
+            Timer.create(0, () -> ramp.setDown(), () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .01),
+            Timer.create(0, () -> arm.setArmPosition(0.383)),
+            Timer.create(0, () -> {arm.setWristSpeed(0.0035); arm.setWristPosition(-0.215);}, () -> Math.abs(arm.getArmPosition() - arm.getArmTarget()) < .01),
+            Timer.create(0, () -> {arm.setWristSpeed(0.002); arm.setArmSpeed(0.002);}, () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .03),
+            //not dunk
+            Timer.create(0, () -> {arm.setArmSpeed(.005); arm.setWristSpeed(.006);}),
+            Timer.create(250, () -> arm.setArmPosition(.43)),
+            Timer.create(250, () -> arm.homeGrabber()),
+            Timer.create(0, () -> arm.setWristSpeed(.006)),
+            Timer.create(0, () -> arm.setWristPosition(.2), () -> arm.isHomed()),
+            Timer.create(0, () -> {swerve.setReckoningTarget(40, -Math.PI / 2); swerve.setReckoningEnabled(true);}, () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .03),
+            //homing
+            Timer.create(0, () -> {arm.setWristSpeed(0.0125); arm.setArmSpeed(0.0075);}),
+            Timer.create(0, () -> arm.setGrabberTarget(arm.grabberLimit)),
+            Timer.create(0, () -> arm.setWristPosition(0.2)),
+            Timer.create(0, () -> {arm.setArmPosition(0.875); arm.setWristSpeed(0.005);}, () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .01),
+            Timer.create(0, () -> {ramp.setDefault(); arm.setArmSpeed(0.003);}, () -> arm.getArmPosition() > .73),
+            Timer.create(0, () -> arm.setWristPosition(0.148), () -> Math.abs(arm.getArmPosition() - arm.getArmTarget()) < .01),
+            Timer.create(0, () -> arm.setGrabberTarget(-1297)),
+            Timer.create(0, () -> {arm.setWristSpeed(0.002); arm.setArmSpeed(0.002);}, () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .005)
+            //not homing
+            // Timer.create(0, () -> {swerve.setStopOnDeviation(true); swerve.setStopOnDeviationValue(swerve.getPigeon().getRoll());}, () -> !(swerve.getReckoning()))
             //probably april tag home somewhere or another
-            //dead reckon backwards
+            //dead reckon backward
             //if we're really ambitious, use the gyro to balance but i dont think so
         );
     }

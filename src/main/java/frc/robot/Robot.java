@@ -6,15 +6,19 @@ package frc.robot;
 
 import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.wpilibj.Preferences;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.sequence.ArmHomeSequence;
-import frc.robot.sequence.DunkSequence;
-import frc.robot.sequence.FloorSequence;
-import frc.robot.sequence.MidDunkSequence;
+import frc.robot.sequence.AutoSequence;
 import frc.robot.sequence.Timer;
+import frc.robot.sequence.cone.DunkSequence;
+import frc.robot.sequence.cone.FloorSequence;
+import frc.robot.sequence.cone.HighDunkSequence;
+import frc.robot.sequence.cone.MidDunkSequence;
 import frc.robot.sequence.swerve.CubeSequence;
 import frc.robot.sequence.swerve.LeftConeSequence;
 import frc.robot.sequence.swerve.RightConeSequence;
@@ -31,7 +35,7 @@ public class Robot extends TimedRobot {
   private Command m_autonomousCommand;
 
   private RobotContainer m_robotContainer;
-
+  public boolean autonomous = false;
   private XboxController controller;
   private XboxController controller2;
 
@@ -48,6 +52,8 @@ public class Robot extends TimedRobot {
   public CubeSequence cubeSequence = new CubeSequence(swerveDriveTrain);
   public LeftConeSequence leftConeSequence = new LeftConeSequence(swerveDriveTrain);
 
+  public AutoSequence auto = new AutoSequence(swerveDriveTrain, arm, ramp);
+
   private int lastAprilID;
 
   private UsbCamera camera1 = null;
@@ -63,7 +69,8 @@ public class Robot extends TimedRobot {
   }
 
   public boolean areSequencesComplete() {
-    return dunkSequence.isComplete() && homeSequence.isComplete() && midDunkSequence.isComplete() && leftConeSequence.isComplete() && cubeSequence.isComplete() && rightConeSequence.isComplete();
+    return auto.isComplete() && dunkSequence.isComplete() && homeSequence.isComplete() && midDunkSequence.isComplete() && leftConeSequence.isComplete() && cubeSequence.isComplete() && rightConeSequence.isComplete() && floorSequence.isComplete();
+    // return true;
   }
 
   @Override
@@ -74,9 +81,9 @@ public class Robot extends TimedRobot {
     controller = new XboxController(0);
     controller2 = new XboxController(1);
     
-    camera1 = CameraServer.startAutomaticCapture(0);
-    camera2 = CameraServer.startAutomaticCapture(1);
+    camera1 = CameraServer.startAutomaticCapture();
 
+   
     // sharedInit(); why was this here?? questions for next time
 
     // swerveDriveTrain.robotInit();
@@ -95,6 +102,8 @@ public class Robot extends TimedRobot {
     arm.sharedInit();
     ramp.sharedInit();
     Timer.clear();
+    auto.reset();
+    SmartDashboard.putBoolean("onlyTeleop2", Preferences.getBoolean("onlyTeleop", false));
   }
 
   /**
@@ -123,17 +132,24 @@ public class Robot extends TimedRobot {
   /** This autonomous runs the autonomous command selected by your {@link RobotContainer} class. */
   @Override
   public void autonomousInit() {
-    m_autonomousCommand = m_robotContainer.getAutonomousCommand();
+    sharedInit();
 
-    // schedule the autonomous command (example)
-    if (m_autonomousCommand != null) {
-      m_autonomousCommand.schedule();
-    }
+    arm.autonomousInit();
+    ramp.autonomousInit();
+
+    auto.run();
+
+    autonomous = true;
   }
 
   /** This function is called periodically during autonomous. */
   @Override
-  public void autonomousPeriodic() {}
+  public void autonomousPeriodic() {
+    swerveDriveTrain.update(controller);
+    arm.update(controller, controller2);
+    ramp.update(controller, controller2);
+    Timer.checkAllTimers(controller);
+  }
 
   @Override
   public void teleopInit() {
@@ -143,7 +159,8 @@ public class Robot extends TimedRobot {
     // this line or comment it out.
     
     sharedInit();
-
+    swerveDriveTrain.teleopInit();
+    autonomous = false;
     // grabberMotor.setSelectedSensorPosition(grabberPosition);
     // grabberMotor.config_kP(0, 0.4);
     // grabberMotor.config_kI(0, 0);
@@ -185,24 +202,34 @@ public class Robot extends TimedRobot {
       } else {
         if(controller2.getYButtonPressed()) {
           dunkSequence.run();
-        } else if(controller2.getXButton()) {
+        } else if(controller2.getXButtonPressed()) {
           midDunkSequence.run();
-        } else if (controller2.getBButton()) {
+        } else if (controller2.getBButtonPressed()) {
           homeSequence.run();
-        } else if (controller2.getAButton()) {
+        } else if (controller2.getAButtonPressed()) {
           floorSequence.run();
-        } else if(controller.getXButton()) {
+        } else if(controller.getXButtonPressed()) {
           leftConeSequence.setTargetID(lastAprilID);
           leftConeSequence.run();
-        } else if(controller.getAButton()) {
+        } else if(controller.getAButtonPressed()) {
           cubeSequence.setTargetID(lastAprilID);
           cubeSequence.run();
-        } else if(controller.getBButton()) {
+        } else if(controller.getBButtonPressed()) {
           rightConeSequence.setTargetID(lastAprilID);
           rightConeSequence.run();
         }
+        
       }
       
+    } else if(controller.getBackButton() || controller2.getBackButton()) {
+      Timer.clear();
+      dunkSequence.reset();
+      midDunkSequence.reset();
+      homeSequence.reset();
+      floorSequence.reset();
+      leftConeSequence.reset();
+      cubeSequence.reset();
+      rightConeSequence.reset();
     }
 
     swerveDriveTrain.update(controller);
