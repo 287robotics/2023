@@ -53,7 +53,6 @@ public class Swerve {
     private boolean gyroMode = true;
     private double startPigeon = 0;
     public boolean balancing = false;
-    public boolean holdingInPlace = false;
 
     private boolean homing;
     private double rotationSpeed = 0.05;
@@ -117,7 +116,7 @@ public class Swerve {
         startPigeon = pigeon.getYaw() * Math.PI / 180;
     }
 
-    public void autonomousInit() {
+    public void autonomouseInit() {
         // oneTimeInit();
     }
     public void sharedInit() {
@@ -133,7 +132,7 @@ public class Swerve {
         oneTimeInit();
         this.rotation = startPigeon;
         this.rotationTarget = startPigeon;
-        // this.setRotationTarget(rotationTarget);
+        this.setRotationTarget(rotationTarget);
         this.i = 0;
         this.p = 0;
         this.d = 0;
@@ -209,7 +208,7 @@ public class Swerve {
     }
 
     public void teleopInit() {
-        startPigeon += Math.PI;
+        // startPigeon += Math.PI;
         canRotate = true;
     }
 
@@ -396,19 +395,11 @@ public class Swerve {
 
             if(Math.abs(pigeon.getRoll()) > 12) {
                 if(pigeon.getRoll() > 0) {
+                    System.out.println("for");
                     y = .3 * s;
                 } else {
+                    System.out.println("bac");
                     y = -.3 * s;
-                }
-            }
-        } else if(holdingInPlace) {
-            double s = Robot.obj.autonomous ? -1.0 : 1.0;
-
-            if(Math.abs(pigeon.getRoll()) > 12) {
-                if(pigeon.getRoll() > 0) {
-                    y = .2 * s;
-                } else {
-                    y = -.2 * s;
                 }
             }
         }
@@ -453,11 +444,7 @@ public class Swerve {
             this.setRotationTarget(0);
             // rotationTarget = startPigeon;
         }
-        
-        if (controller.getPOV() != -1) {
-            this.setRotationTarget(-controller.getPOV() * Math.PI / 180); 
-        }
-        
+
         if (rotation < rotationTarget) {
             rotation += rotationSpeed;
         } else if (rotation > rotationTarget) {
@@ -466,7 +453,10 @@ public class Swerve {
         p = rotation - pigeon.getYaw() * Math.PI / 180;
         i += p * delta;
         d = (p - lastP) / delta;
-        rotationOutput = -Math.min(1, Math.max(p * kP + i * kI + d * kD, -1));      
+        rotationOutput = -Math.min(1, Math.max(p * kP + i * kI + d * kD, -1));
+        System.out.println(lastP + " " + p + " " + rotation + " " + (pigeon.getYaw() * Math.PI / 180));
+        System.out.println("aaa");
+
         
         lastP = p;
 

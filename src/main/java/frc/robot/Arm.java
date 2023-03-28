@@ -13,8 +13,8 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Arm {
 
-    private static final double ARM_MIN = 0.32; // absolutely farthest should be 0.33
-    private static final double ARM_MAX = 0.89; // absolute farthest should be 0.82
+    private static final double ARM_MIN = 0.367; // absolutely farthest should be 0.33
+    private static final double ARM_MAX = 0.867; // absolute farthest should be 0.82
 
     private static final double WRIST_MIN = -0.5;
     private static final double WRIST_MAX = 0.2;
@@ -243,11 +243,19 @@ public class Arm {
         }
 
         if(armPosition < armTarget && e < ARM_MAX) {
-            armPosition = Math.min(ARM_MAX, armPosition + armSpeed);
+            if(armPosition < ARM_MAX - 0.05) {
+                armPosition = Math.min(ARM_MAX, armPosition + armSpeed);
+            } else {
+                armPosition = Math.min(ARM_MAX, armPosition + 0.002);
+            }
         }
 
         if(armPosition > armTarget && e > ARM_MIN) {
-            armPosition = Math.max(ARM_MIN, armPosition - armSpeed);
+            if(armPosition > ARM_MIN + 0.05) {
+                armPosition = Math.max(ARM_MIN, armPosition - armSpeed);
+            } else {
+                armPosition = Math.max(ARM_MIN, armPosition - armSpeed / 4);
+            }
         }
 
         armPID.setPosition(armPosition);

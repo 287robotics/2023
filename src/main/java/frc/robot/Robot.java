@@ -82,7 +82,6 @@ public class Robot extends TimedRobot {
     controller2 = new XboxController(1);
     
     camera1 = CameraServer.startAutomaticCapture();
-
    
     // sharedInit(); why was this here?? questions for next time
 
@@ -136,6 +135,7 @@ public class Robot extends TimedRobot {
 
     arm.autonomousInit();
     ramp.autonomousInit();
+    swerveDriveTrain.autonomousInit();
 
     auto.run();
 
@@ -161,11 +161,22 @@ public class Robot extends TimedRobot {
     sharedInit();
     swerveDriveTrain.teleopInit();
     autonomous = false;
+    
     // grabberMotor.setSelectedSensorPosition(grabberPosition);
     // grabberMotor.config_kP(0, 0.4);
     // grabberMotor.config_kI(0, 0);
     // grabberMotor.config_kD(0, 0);
     // grabberMotor.config_kF(0, 0);
+
+    Timer.clear();
+    dunkSequence.reset();
+    midDunkSequence.reset();
+    homeSequence.reset();
+    floorSequence.reset();
+    leftConeSequence.reset();
+    cubeSequence.reset();
+    rightConeSequence.reset();
+    auto.reset();
 
     // wristPIDController.setVariables(
     //   0.005,

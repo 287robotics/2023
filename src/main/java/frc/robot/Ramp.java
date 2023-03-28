@@ -47,8 +47,8 @@ public class Ramp {
     public void oneTimeInit() {
         rampPosition = MIN_RAMP_LIMIT;
         rampTarget = MIN_RAMP_LIMIT;
-        rampMotorController.setReferencePosition(rampPosition);
-        rampMotorController.setPosition(rampPosition);
+        // rampMotorController.setReferencePosition(rampPosition);
+        // rampMotorController.setPosition(rampPosition);
         jLimit = true;
     }
 
@@ -89,13 +89,13 @@ public class Ramp {
         if (!limit && jLimit) {
             rampPosition = 0;
             rampTarget = 0;
-            rampMotorController.setReferencePosition(rampPosition);
-            rampMotorController.setPosition(rampPosition);
+            // rampMotorController.setReferencePosition(rampPosition);
+            // rampMotorController.setPosition(rampPosition);
             rampSpeed = .003;
         }
 
         jLimit = limit;
 
-        rampMotorController.setPosition(rampPosition);
+        // rampMotorController.setPosition(rampPosition);
     }
 }

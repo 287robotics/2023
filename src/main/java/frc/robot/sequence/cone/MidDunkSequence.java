@@ -11,10 +11,9 @@ public class MidDunkSequence extends Sequence {
             Timer.create(0, () -> {arm.setWristSpeed(0.004); arm.setArmSpeed(0.006);}),
             Timer.create(0, () -> arm.setWristPosition(0.2)),
             Timer.create(0, () -> ramp.setDown(), () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .01),
-            Timer.create(0, () -> arm.setArmPosition(0.569)),
-            Timer.create(0, () -> {}, () -> Math.abs(arm.getArmPosition() - arm.getArmTarget()) < .01),
-            Timer.create(1000, () -> {arm.setWristPosition(.117);}),
-            Timer.create(0, () -> {arm.setWristSpeed(0.002); arm.setArmSpeed(0.002);}, () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .09)
+            Timer.create(0, () -> arm.setArmPosition(0.58)),
+            Timer.create(0, () -> {arm.setWristPosition(.18);}, () -> Math.abs(arm.getArmPosition() - arm.getArmTarget()) < .01),
+            Timer.create(0, () -> {arm.setWristSpeed(0.002); arm.setArmSpeed(0.002);}, () -> Math.abs(arm.getWristPosition() - arm.getWristTarget()) < .03)
         );
     }
 
