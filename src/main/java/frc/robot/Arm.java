@@ -13,11 +13,11 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Arm {
 
-    private static final double ARM_MIN = 0.367; // absolutely farthest should be 0.33
-    private static final double ARM_MAX = 0.867; // absolute farthest should be 0.82
+    public static final double ARM_MIN = 0.367; // absolutely farthest should be 0.33
+    public static final double ARM_MAX = 0.857; // absolute farthest should be 0.82
 
     private static final double WRIST_MIN = -0.5;
-    private static final double WRIST_MAX = 0.2;
+    private static final double WRIST_MAX = 0.20;
 
     private TalonFX grabberMotor = new TalonFX(9);
     private CANSparkMax wristMotor = new CANSparkMax(10, MotorType.kBrushless);
@@ -248,6 +248,12 @@ public class Arm {
             } else {
                 armPosition = Math.min(ARM_MAX, armPosition + 0.002);
             }
+        // } else if(e >= ARM_MAX) {
+        //     // armPosition = e;
+        //     // armTarget = e;
+        //     armPosition = e;
+        //     armPID.setReferencePosition(e);
+        //     armPID.setPosition(e);
         }
 
         if(armPosition > armTarget && e > ARM_MIN) {
@@ -256,15 +262,29 @@ public class Arm {
             } else {
                 armPosition = Math.max(ARM_MIN, armPosition - armSpeed / 4);
             }
+        // } else if(e <= ARM_MIN) {
+        //     // armPosition = e;
+        //     // armTarget = e;
+        //     armPosition = e;
+        //     armPID.setReferencePosition(e);
+        //     armPID.setPosition(e);
         }
 
         armPID.setPosition(armPosition);
 
         if(wristPosition < wristTarget && ew < WRIST_MAX) {
             wristPosition = Math.min(WRIST_MAX, wristPosition + wristSpeed);
+        // } else if(ew >= WRIST_MAX) {
+        //     wristPosition = ew;
+        //     wristPID.setReferencePosition(ew);
+        //     wristPID.setPosition(ew);
         }
         if(wristPosition > wristTarget && ew > WRIST_MIN) {
             wristPosition = Math.max(WRIST_MIN, wristPosition - wristSpeed);
+        // } else if(ew <= WRIST_MIN) {
+        //     wristPosition = ew;
+        //     wristPID.setReferencePosition(ew);
+        //     wristPID.setPosition(ew);
         }
 
         if (grabberPosition < grabberTarget && opened) {

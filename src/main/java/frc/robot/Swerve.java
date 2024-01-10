@@ -98,7 +98,8 @@ public class Swerve {
     private double distToReckon = 0;
     private double angleToReckon = 0;
     private boolean reckoning = false;
-
+    
+    private boolean locking = false;
     public boolean canRotate = false;
 
     private short[] botAccel = new short[3];
@@ -119,8 +120,10 @@ public class Swerve {
 
     public void autonomousInit() {
         // oneTimeInit();
+        canRotate = false;
     }
     public void sharedInit() {
+        locking = false;
         this.indWheelController1 = new IndWheelController();
         this.indWheelController2 = new IndWheelController();
         this.indWheelController3 = new IndWheelController();
@@ -390,17 +393,29 @@ public class Swerve {
         }
 
         SmartDashboard.putNumber("rotations", (int) (pigeon.getYaw() * Math.PI / 180 / (Math.PI * 2)));
-
+        
+        if (!Robot.obj.autonomous) {
+            locking = controller.getRightBumper();
+            
+        }
+        
         if(balancing) {
             double s = Robot.obj.autonomous ? -1.0 : 1.0;
 
-            if(Math.abs(pigeon.getRoll()) > 12) {
+            if(Math.abs(pigeon.getRoll()) > 11.5) {
                 if(pigeon.getRoll() > 0) {
-                    y = .3 * s;
+                    y = .32 * s;
                 } else {
-                    y = -.3 * s;
+                    y = -.32 * s;
                 }
-            }
+            } 
+            // else if (Math.abs(pigeon.getRoll()) > 9.5) {
+                //     if(pigeon.getRoll() > 0) {
+            //         y = .1 * s;
+            //     } else {
+            //         y = -.1 * s;
+            //     }
+            // }
         } else if(holdingInPlace) {
             double s = Robot.obj.autonomous ? -1.0 : 1.0;
 
@@ -487,6 +502,7 @@ public class Swerve {
         }
 
         double rotationPower = Math.abs(rotationOutput) * 0.5;
+        
         if(!canRotate) {
             rotationPower = 0;
         }
@@ -499,8 +515,12 @@ public class Swerve {
         if(controllerPower > 0.02) {
             botDriveAngle = Math.atan2(y, x) + (gyroMode ? (pigeon.getYaw() * Math.PI / 180 - startPigeon) : 0);
         }
-
         
+        if (locking) {
+            botSpeedRamp = 0;
+            rotationOutput = 1;
+            rotationPower = 1;
+        }
 
         if(botSpeedRamp >= 0.02 || Math.abs(rotationOutput) >= 0.1) {
             if (rotationOutput <= -.1) {
@@ -521,7 +541,8 @@ public class Swerve {
                 motorVector3 = new Vec2(0, 0);
                 motorVector4 = new Vec2(0, 0);
             }
-
+            
+            
             targetVector = new Vec2(botSpeedRamp * Math.cos(botDriveAngle), botSpeedRamp * Math.sin(botDriveAngle));
 
             if(botSpeedRamp > 0.02) {
@@ -553,6 +574,12 @@ public class Swerve {
             }
         }
 
+        if (locking) {
+            motor1Vec = new Vec2(0, 0);
+            motor2Vec = new Vec2(0, 0);
+            motor3Vec = new Vec2(0, 0);
+            motor4Vec = new Vec2(0, 0);
+        }
 
         driveMotor1.set(-motor1Vec.getLength() * indWheelController1.wheelSign);
         driveMotor2.set(-motor2Vec.getLength() * indWheelController2.wheelSign);
